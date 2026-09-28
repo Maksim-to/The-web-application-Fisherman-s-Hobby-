@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}Управление пользователями — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Пользователи</h2>
+
+    <!-- Форма создания / редактирования -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="userFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Создать пользователя</h3>
+        <form method="POST" id="userForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="userAction" value="create">
+            <input type="hidden" name="user_id" id="userId" value="">
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:15px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Логин <span class="required">*</span></label>
+                    <input type="text" name="username" id="username" required 
+                           pattern="[A-Za-z0-9_]{3,50}"
+                           title="Только буквы, цифры и подчёркивания, от 3 до 50 символов"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <small style="color:var(--text-muted); font-size:11px;">3–50 символов, только буквы, цифры и _</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Email <span class="required">*</span></label>
+                    <input type="email" name="email" id="email" required 
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Пароль <span class="required" id="passwordRequired">*</span></label>
+                    <input type="password" name="password" id="password" minlength="4"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <small id="passwordHint" style="color:var(--text-muted); font-size:11px; display:none;">Оставьте пустым, чтобы не менять пароль</small>
+                    <small id="passwordRequire" style="color:var(--text-muted); font-size:11px;">Минимум 4 символа</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>ФИО <span class="required">*</span></label>
+                    <input type="text" name="full_name" id="fullName" required 
+                           pattern="[А-Яа-яЁёA-Za-z\s\-]{5,100}"
+                           title="Только буквы, пробелы и дефисы"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <small style="color:var(--text-muted); font-size:11px;">Только буквы, пробелы и дефисы</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Телефон</label>
+                    <input type="tel" name="phone" id="phone" placeholder="+7 (XXX) XXX-XX-XX"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <div id="phone-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                    <small style="color:var(--text-muted); font-size:11px;">Формат: +7 (XXX) XXX-XX-XX (Россия)</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Дата рождения</label>
+                    <input type="date" name="birth_date" id="birthDate" max="{{ datetime.now().date().strftime('%Y-%m-%d') }}"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <div id="birthdate-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                    <small style="color:var(--text-muted); font-size:11px;">Пользователь должен быть старше 18 лет</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Роль</label>
+                    <select name="role" id="role" style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <option value="user">Пользователь</option>
+                        <option value="moderator">Модератор</option>
+                        {% if current_user.id == 1 %}
+                            <option value="admin">Администратор</option>
+                        {% endif %}
+                    </select>
+                    {% if current_user.id != 1 %}
+                        <small style="color:var(--text-muted); font-size:11px;">Только главный администратор может создавать администраторов</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button type="submit" class="submit-btn" id="submitBtn" style="width:auto; padding:8px 20px;">Создать</button>
+                <button type="button" class="submit-btn" id="cancelEditBtn" onclick="cancelEdit()" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+            <div id="form-errors" style="color:var(--text-danger); margin-top:10px; font-size:12px;"></div>
+        </form>
+    </div>
+
+    <!-- Панель поиска -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+            <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Поиск пользователей</h3>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <div style="flex:3; min-width:250px; position:relative;">
+                <input type="text" id="searchUserInput" placeholder="Поиск по ID, логину, ФИО, email или телефону..." 
+                       style="width:100%; padding:10px 12px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:6px; font-size:14px;">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button onclick="searchUsers()" class="submit-btn" style="width:auto; padding:8px 20px;">Найти</button>
+                <button onclick="clearSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+            </div>
+        </div>
+        <div id="searchResult" style="margin-top:10px; display:none;"></div>
+        <div id="searchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Таблица пользователей -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все пользователи ({{ users|length }})</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary); background:var(--bg-input);">
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent); width:60px;">ID</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Логин</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Email</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">ФИО</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Телефон</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Дата рождения</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Дата регистрации</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Роль</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    {% for u in users %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" id="user-row-{{ u.id }}" data-user-id="{{ u.id }}" data-user-role="{{ u.role }}">
+                        <td style="padding:8px; color:var(--text-muted); font-family:monospace; font-weight:600;">#{{ u.id }}</td>
+                        <td style="padding:8px; color:var(--text-primary);">{{ u.username }} 
+                            {% if u.id == 1 %}<span style="font-size:10px; background:#c04e3c20; color:#c04e3c; padding:2px 6px; border-radius:4px; margin-left:6px;">Главный</span>{% endif %}
+                        </td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ u.email }}</td>
+                        <td style="padding:8px; color:var(--text-primary);">{{ u.full_name }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ u.phone or '—' }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ u.birth_date.strftime('%d.%m.%Y') if u.birth_date else '—' }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+                        <td style="padding:8px; text-align:center;">
+                                <span class="role-badge" style="padding:4px 8px; border-radius:4px; font-size:11px; font-weight:600;
+                                {% if u.role == 'admin' %}background:#c04e3c20; color:#c04e3c;
+                                {% elif u.role == 'moderator' %}background:#4a6a3a20; color:#4a6a3a;
+                                {% else %}background:#5a6a4e20; color:#5a6a4e;{% endif %}">
+                                {{ u.role }}
+                            </span>
+                        </td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                {% set is_admin = u.role == 'admin' %}
+                                {% set is_self = u.id == current_user_id %}
+                                {% set is_main_admin = u.id == 1 %}
+                                {% set current_is_main = current_user_id == 1 %}
+                                
+                                {# Редактирование доступно только если:
+                                   - не администратор ИЛИ главный администратор редактирует администратора
+                                   - И не редактирование главного администратора другим администратором #}
+                                {% if (not is_admin) or (is_admin and current_is_main) %}
+                                    {% if not (is_main_admin and not current_is_main) %}
+                                        <button onclick="editUser({{ u.id }}, '{{ u.username }}', '{{ u.email }}', '{{ u.full_name }}', '{{ u.phone or '' }}', '{{ u.birth_date.isoformat() if u.birth_date else '' }}', '{{ u.role }}')" 
+                                        class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px;">Редактировать</button>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {# Удаление доступно только если:
+                                   - не администратор ИЛИ главный администратор удаляет администратора
+                                   - И не удаление самого себя #}
+                                {% if not is_self %}
+                                    {% if (not is_admin) or (is_admin and current_is_main) %}
+                                        {% if not (is_main_admin and not current_is_main) %}
+                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить пользователя {{ u.username }}? Это действие нельзя отменить!')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                                <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);" 
+                                                    {% if is_admin and not current_is_main %}disabled title="Только главный администратор может удалять администраторов"{% endif %}>Удалить</button>
+                                            </form>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not users %}
+            <div style="color:var(--text-muted); padding:20px; text-align:center;">Нет пользователей в базе данных.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // ============ ФУНКЦИИ ФОРМАТИРОВАНИЯ ТЕЛЕФОНА ============
+    function formatPhoneNumber(input) {
+        let cleaned = input.value.replace(/\D/g, '');
+        if (cleaned.length > 11) cleaned = cleaned.slice(0, 11);
+        let formatted = '';
+        if (cleaned.startsWith('8')) cleaned = '7' + cleaned.slice(1);
+        if (cleaned.startsWith('7')) {
+            formatted = '+7';
+            let rest = cleaned.slice(1);
+            if (rest.length > 0) { 
+                formatted += ' (' + rest.slice(0, 3); 
+                if (rest.length >= 3) { 
+                    formatted += ')'; 
+                    if (rest.length > 3) { 
+                        formatted += ' ' + rest.slice(3, 6); 
+                        if (rest.length >= 6) { 
+                            formatted += '-'; 
+                            if (rest.length > 6) { 
+                                formatted += rest.slice(6, 8); 
+                                if (rest.length >= 8) { 
+                                    formatted += '-'; 
+                                    if (rest.length > 8) formatted += rest.slice(8, 10); 
+                                } 
+                            } 
+                        } 
+                    } 
+                } 
+            }
+        } else if (cleaned.length > 0) { 
+            formatted = cleaned; 
+        }
+        
+        const cursorPos = input.selectionStart;
+        const oldLength = input.value.length;
+        input.value = formatted;
+        const newLength = formatted.length;
+        const delta = newLength - oldLength;
+        if (cursorPos + delta > 0) input.setSelectionRange(cursorPos + delta, cursorPos + delta);
+    }
+
+    function validatePhoneNumber(phone) {
+        if (!phone) return true;
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 0) return false;
+        let normalized = digits;
+        if (normalized.startsWith('8')) normalized = '7' + normalized.slice(1);
+        return normalized.length === 11 && normalized.startsWith('7');
+    }
+
+    function validateAge(birthDateStr) {
+        if (!birthDateStr) return true;
+        const today = new Date();
+        const birth = new Date(birthDateStr);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age >= 18;
+    }
+
+    // ============ ИНИЦИАЛИЗАЦИЯ МАСКИ ТЕЛЕФОНА ============
+    const phoneInput = document.getElementById('phone');
+    const phoneError = document.getElementById('phone-error');
+    const birthDateInput = document.getElementById('birthDate');
+    const birthdateError = document.getElementById('birthdate-error');
+    
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) { 
+            formatPhoneNumber(this); 
+            phoneError.textContent = ''; 
+        });
+        
+        phoneInput.addEventListener('blur', function(e) {
+            formatPhoneNumber(this);
+            if (this.value && !validatePhoneNumber(this.value)) {
+                phoneError.textContent = '❌ Введите корректный российский номер телефона (11 цифр после +7)';
+            } else {
+                phoneError.textContent = '';
+            }
+        });
+        
+        phoneInput.addEventListener('keydown', function(e) {
+            const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            if (!/^[0-9]$/.test(e.key) && !allowedKeys.includes(e.key) && !e.ctrlKey) e.preventDefault();
+        });
+    }
+    
+    if (birthDateInput) {
+        birthDateInput.addEventListener('blur', function(e) {
+            if (this.value && !validateAge(this.value)) {
+                birthdateError.textContent = '❌ Пользователь должен быть старше 18 лет';
+            } else {
+                birthdateError.textContent = '';
+            }
+        });
+    }
+
+    // ============ ПОИСК ПОЛЬЗОВАТЕЛЕЙ ============
+    function searchUsers() {
+        const searchTerm = document.getElementById('searchUserInput').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#usersTableBody tr');
+        const searchResult = document.getElementById('searchResult');
+        const searchStats = document.getElementById('searchStats');
+        let foundCount = 0;
+        
+        if (!searchTerm) {
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+            searchResult.style.display = 'none';
+            searchStats.innerHTML = '';
+            return;
+        }
+        
+        rows.forEach(row => {
+            const userId = row.getAttribute('data-user-id') || '';
+            const username = (row.cells[1]?.textContent || '').toLowerCase();
+            const email = (row.cells[2]?.textContent || '').toLowerCase();
+            const fullName = (row.cells[3]?.textContent || '').toLowerCase();
+            const phone = (row.cells[4]?.textContent || '').toLowerCase();
+            
+            const matches = userId.includes(searchTerm) || 
+                           username.includes(searchTerm) || 
+                           email.includes(searchTerm) || 
+                           fullName.includes(searchTerm) || 
+                           phone.includes(searchTerm);
+            
+            if (matches) {
+                row.style.display = '';
+                foundCount++;
+                row.style.backgroundColor = 'var(--bg-hover)';
+                setTimeout(() => {
+                    row.style.backgroundColor = '';
+                }, 2000);
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        if (foundCount === 0) {
+            searchResult.style.display = 'block';
+            searchResult.innerHTML = `<div style="color:var(--text-danger); padding:8px; background:var(--bg-rejection); border-radius:4px;">Пользователи не найдены по запросу "${searchTerm}"</div>`;
+            searchStats.innerHTML = '';
+            setTimeout(() => {
+                if (searchResult.style.display === 'block') {
+                    searchResult.style.display = 'none';
+                }
+            }, 3000);
+        } else {
+            searchResult.style.display = 'block';
+            searchResult.innerHTML = `<div style="color:var(--text-success); padding:8px; background:var(--bg-flash-success); border-radius:4px;">Найдено пользователей: ${foundCount}</div>`;
+            searchStats.innerHTML = `Показано ${foundCount} из ${rows.length} пользователей`;
+            setTimeout(() => {
+                if (searchResult.style.display === 'block') {
+                    searchResult.style.display = 'none';
+                }
+            }, 2000);
+        }
+    }
+    
+    function clearSearch() {
+        document.getElementById('searchUserInput').value = '';
+        const rows = document.querySelectorAll('#usersTableBody tr');
+        rows.forEach(row => {
+            row.style.display = '';
+            row.style.backgroundColor = '';
+        });
+        document.getElementById('searchResult').style.display = 'none';
+        document.getElementById('searchStats').innerHTML = '';
+    }
+    
+    document.getElementById('searchUserInput')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchUsers();
+        }
+    });
+
+    // ============ ФУНКЦИИ РЕДАКТИРОВАНИЯ ============
+    function editUser(id, username, email, fullName, phone, birthDate, role) {
+        const currentUserId = {{ current_user_id }};
+        const isEditingAdmin = role === 'admin';
+        const isMainAdmin = id === 1;
+        
+        // Проверка на попытку редактирования главного администратора
+        if (isMainAdmin && currentUserId !== 1) {
+            alert('Только главный администратор может редактировать главного администратора');
+            return;
+        }
+        
+        // Проверка на попытку редактирования администратора не главным администратором
+        if (isEditingAdmin && currentUserId !== 1) {
+            alert('Только главный администратор может редактировать других администраторов');
+            return;
+        }
+        
+        document.getElementById('userFormTitle').textContent = 'Редактировать пользователя';
+        document.getElementById('userAction').value = 'edit';
+        document.getElementById('userId').value = id;
+        document.getElementById('username').value = username;
+        document.getElementById('email').value = email;
+        document.getElementById('password').required = false;
+        document.getElementById('passwordRequired').style.display = 'none';
+        document.getElementById('passwordHint').style.display = 'block';
+        document.getElementById('passwordRequire').style.display = 'none';
+        document.getElementById('fullName').value = fullName;
+        document.getElementById('phone').value = phone;
+        document.getElementById('birthDate').value = birthDate;
+        
+        // Ограничение на изменение роли
+        const roleSelect = document.getElementById('role');
+        if (currentUserId !== 1) {
+            // Не главный администратор не может изменять роль
+            roleSelect.disabled = true;
+            roleSelect.value = role;
+        } else {
+            roleSelect.disabled = false;
+            roleSelect.value = role;
+        }
+        
+        document.getElementById('submitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('submitBtn').style.background = 'var(--btn-bg)';
+        document.getElementById('cancelEditBtn').style.display = 'block';
+        
+        phoneError.textContent = '';
+        birthdateError.textContent = '';
+        document.getElementById('form-errors').innerHTML = '';
+        
+        document.getElementById('userFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function cancelEdit() {
+        document.getElementById('userForm').reset();
+        document.getElementById('userFormTitle').textContent = 'Создать пользователя';
+        document.getElementById('userAction').value = 'create';
+        document.getElementById('userId').value = '';
+        document.getElementById('password').required = true;
+        document.getElementById('passwordRequired').style.display = 'inline';
+        document.getElementById('passwordHint').style.display = 'none';
+        document.getElementById('passwordRequire').style.display = 'block';
+        document.getElementById('submitBtn').innerHTML = 'Создать';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+        
+        const roleSelect = document.getElementById('role');
+        roleSelect.disabled = false;
+        
+        phoneError.textContent = '';
+        birthdateError.textContent = '';
+        document.getElementById('form-errors').innerHTML = '';
+    }
+
+    // ============ ВАЛИДАЦИЯ ФОРМЫ ПЕРЕД ОТПРАВКОЙ ============
+    document.getElementById('userForm').addEventListener('submit', function(e) {
+        const errors = [];
+        const errorDiv = document.getElementById('form-errors');
+        errorDiv.innerHTML = '';
+        
+        const username = document.getElementById('username').value.trim();
+        const usernamePattern = /^[A-Za-z0-9_]{3,50}$/;
+        if (!usernamePattern.test(username)) {
+            errors.push('❌ Логин должен содержать 3–50 символов, только буквы, цифры и _');
+        }
+        
+        const email = document.getElementById('email').value.trim();
+        const emailPattern = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+        if (!emailPattern.test(email)) {
+            errors.push('❌ Введите корректный email адрес');
+        }
+        
+        const action = document.getElementById('userAction').value;
+        const password = document.getElementById('password').value;
+        if (action === 'create' && (!password || password.length < 4)) {
+            errors.push('❌ Пароль должен содержать минимум 4 символа');
+        }
+        if (action === 'edit' && password && password.length < 4) {
+            errors.push('❌ Пароль должен содержать минимум 4 символа');
+        }
+        
+        const fullName = document.getElementById('fullName').value.trim();
+        const namePattern = /^[А-Яа-яЁёA-Za-z\s\-]{5,100}$/;
+        if (!namePattern.test(fullName)) {
+            errors.push('❌ ФИО должно содержать только буквы, пробелы и дефисы (5–100 символов)');
+        }
+        
+        const phone = document.getElementById('phone').value;
+        if (phone && !validatePhoneNumber(phone)) {
+            errors.push('❌ Введите корректный российский номер телефона (11 цифр после +7)');
+        }
+        
+        const birthDate = document.getElementById('birthDate').value;
+        if (birthDate && !validateAge(birthDate)) {
+            errors.push('❌ Пользователь должен быть старше 18 лет');
+        }
+        
+        if (errors.length > 0) {
+            e.preventDefault();
+            errorDiv.innerHTML = errors.join('<br>');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+</script>
+{% endblock %}

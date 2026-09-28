@@ -1,0 +1,561 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="auth-form" style="max-width:420px; margin:60px auto;">
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); letter-spacing:1px; margin-bottom:6px;">РЕГИСТРАЦИЯ</h2>
+    <p style="font-size:var(--font-size-sm); color:var(--text-muted); margin-bottom:22px;">Создайте аккаунт для доступа ко всем функциям</p>
+
+    <form method="POST" id="registerForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+            <label>Логин <span class="required">*</span></label>
+            <input type="text" name="username" id="username" required autocomplete="username" value="{{ username_value }}">
+            <div id="username-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>Email <span class="required">*</span></label>
+            <input type="email" name="email" id="email" required autocomplete="email" value="{{ email_value }}">
+            <div id="email-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>Пароль <span class="required">*</span></label>
+            <input type="password" name="password" id="password" required autocomplete="new-password" minlength="4">
+            <div id="password-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>Подтверждение пароля <span class="required">*</span></label>
+            <input type="password" name="password_confirm" id="passwordConfirm" required>
+            <div id="password-confirm-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>ФИО <span class="required">*</span></label>
+            <input type="text" name="full_name" id="fullName" required placeholder="Иванов Иван Иванович" value="{{ full_name_value }}">
+            <div id="fullname-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>Телефон <span class="required">*</span></label>
+            <div style="display:flex; align-items:center;">
+                <span style="background:var(--bg-input); border:1px solid var(--border-input); border-right:none; padding:10px 12px; border-radius:6px 0 0 6px; color:var(--text-primary); font-size:14px;">+7</span>
+                <input type="tel" name="phone" id="phone" required placeholder="XXX XXX-XX-XX" 
+                       style="flex:1; border-radius:0 6px 6px 0; margin:0;" value="{{ phone_value|replace('+7', '')|trim }}">
+            </div>
+            <div id="phone-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>Дата рождения <span class="required">*</span></label>
+            {% set today = datetime.now().date() %}
+            {% set min_date = (today - timedelta(days=130*365)).strftime('%Y-%m-%d') %}
+            {% set max_date = (today - timedelta(days=18*365)).strftime('%Y-%m-%d') %}
+            <input type="date" name="birth_date" id="birthDate" required 
+                   min="{{ min_date }}"
+                   max="{{ max_date }}"
+                   value="{{ birth_date_value }}">
+            <div id="birthdate-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+
+        <label style="display:flex; align-items:flex-start; gap:8px; font-size:var(--font-size-sm); color:var(--text-primary); margin:16px 0;">
+            <input type="checkbox" name="agree" id="agreeCheckbox" required style="width:auto; margin-top:2px; accent-color:var(--text-accent);">
+            <span>Я принимаю условия <a href="{{ url_for('main.user_agreement') }}" target="_blank" style="color:var(--text-accent);">Пользовательского соглашения</a>
+            и даю согласие на обработку персональных данных в соответствии с
+            <a href="{{ url_for('main.policy') }}" target="_blank" style="color:var(--text-accent);">Политикой конфиденциальности</a></span>
+        </label>
+        <div id="agree-error" style="color:var(--text-danger); font-size:11px; margin-top:4px; margin-bottom:8px;"></div>
+        
+        <button type="submit" class="submit-btn" style="margin-top:6px;">Зарегистрироваться</button>
+        <div id="form-errors" style="color:var(--text-danger); margin-top:10px; font-size:13px; padding:10px; background:rgba(192,78,60,0.1); border-radius:6px; display:none;"></div>
+    </form>
+
+    <p style="margin-top:16px; font-size:var(--font-size-sm); color:var(--text-muted); text-align:center;">
+        Уже есть аккаунт? <a href="{{ url_for('main.login') }}" style="color:var(--text-accent);">Войдите</a>
+    </p>
+</div>
+
+<script>
+    // ============ ФУНКЦИИ ФОРМАТИРОВАНИЯ ТЕЛЕФОНА ==========
+    function formatPhoneNumber(input) {
+        // Удаляем все нецифровые символы
+        let cleaned = input.value.replace(/\D/g, '');
+        
+        // Ограничиваем длину (максимум 10 цифр)
+        if (cleaned.length > 10) cleaned = cleaned.slice(0, 10);
+        
+        let formatted = '';
+        
+        // Форматируем как XXX XXX-XX-XX
+        if (cleaned.length > 0) {
+            formatted = cleaned.slice(0, 3);
+            if (cleaned.length >= 3) {
+                formatted += ' ';
+                if (cleaned.length > 3) {
+                    formatted += cleaned.slice(3, 6);
+                    if (cleaned.length >= 6) {
+                        formatted += '-';
+                        if (cleaned.length > 6) {
+                            formatted += cleaned.slice(6, 8);
+                            if (cleaned.length >= 8) {
+                                formatted += '-';
+                                if (cleaned.length > 8) {
+                                    formatted += cleaned.slice(8, 10);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        input.value = formatted;
+    }
+    
+    function validatePhoneNumber(phone) {
+        if (!phone) return false;
+        const digits = phone.replace(/\D/g, '');
+        return digits.length === 10;
+    }
+
+    // ============ ФУНКЦИЯ ВАЛИДАЦИИ EMAIL ============
+    function validateEmail(email) {
+        const emailPattern = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+        if (!email) return false;
+        return emailPattern.test(email);
+    }
+
+    // ============ ФУНКЦИЯ ВАЛИДАЦИИ ЛОГИНА ============
+    function validateLogin(username) {
+        const loginPattern = /^[A-Za-z0-9_]{3,50}$/;
+        if (!username) return false;
+        return loginPattern.test(username);
+    }
+
+    // ============ ФУНКЦИЯ ВАЛИДАЦИИ ФИО ============
+    function validateFullName(fullName) {
+        const namePattern = /^[А-Яа-яЁёA-Za-z\s\-]{5,100}$/;
+        if (!fullName) return false;
+        return namePattern.test(fullName);
+    }
+
+    // ============ ФУНКЦИЯ ВАЛИДАЦИИ ВОЗРАСТА ============
+    function validateAge(birthDateStr) {
+        if (!birthDateStr) return false;
+        const today = new Date();
+        const birth = new Date(birthDateStr);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age >= 18 && age <= 130;
+    }
+
+    // ============ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ПОДСВЕТКИ ============
+    function setFieldError(inputElement, errorElement, errorMessage) {
+        if (errorMessage) {
+            inputElement.classList.add('input-error');
+            errorElement.textContent = errorMessage;
+            errorElement.style.display = 'block';
+        } else {
+            inputElement.classList.remove('input-error');
+            errorElement.textContent = '';
+            errorElement.style.display = 'none';
+        }
+    }
+
+    // ============ ВАЛИДАЦИЯ В РЕАЛЬНОМ ВРЕМЕНИ ============
+    function validateUsernameField() {
+        const input = document.getElementById('username');
+        const errorDiv = document.getElementById('username-error');
+        const value = input.value.trim();
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        if (value.length < 3) {
+            setFieldError(input, errorDiv, '❌ Логин слишком короткий (минимум 3 символа)');
+            return false;
+        }
+        
+        if (value.length > 50) {
+            setFieldError(input, errorDiv, '❌ Логин слишком длинный (максимум 50 символов)');
+            return false;
+        }
+        
+        if (!validateLogin(value)) {
+            setFieldError(input, errorDiv, '❌ Логин может содержать только латинские буквы, цифры и символ подчёркивания (_)');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateEmailField() {
+        const input = document.getElementById('email');
+        const errorDiv = document.getElementById('email-error');
+        const value = input.value.trim();
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        if (!value.includes('@')) {
+            setFieldError(input, errorDiv, '❌ Email должен содержать символ @');
+            return false;
+        }
+        
+        if (!validateEmail(value)) {
+            setFieldError(input, errorDiv, '❌ Некорректный email. Пример: username@domain.ru');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validatePasswordField() {
+        const input = document.getElementById('password');
+        const errorDiv = document.getElementById('password-error');
+        const value = input.value;
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        if (value.length < 4) {
+            setFieldError(input, errorDiv, '❌ Пароль слишком короткий (минимум 4 символа)');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validatePasswordConfirmField() {
+        const password = document.getElementById('password').value;
+        const confirmInput = document.getElementById('passwordConfirm');
+        const errorDiv = document.getElementById('password-confirm-error');
+        const confirmValue = confirmInput.value;
+        
+        if (!confirmValue) {
+            setFieldError(confirmInput, errorDiv, '');
+            return false;
+        }
+        
+        if (password !== confirmValue) {
+            setFieldError(confirmInput, errorDiv, '❌ Пароли не совпадают');
+            return false;
+        }
+        
+        setFieldError(confirmInput, errorDiv, '');
+        return true;
+    }
+
+    function validateFullNameField() {
+        const input = document.getElementById('fullName');
+        const errorDiv = document.getElementById('fullname-error');
+        const value = input.value.trim();
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        if (value.length < 5) {
+            setFieldError(input, errorDiv, '❌ ФИО слишком короткое (минимум 5 символов)');
+            return false;
+        }
+        
+        if (value.length > 100) {
+            setFieldError(input, errorDiv, '❌ ФИО слишком длинное (максимум 100 символов)');
+            return false;
+        }
+        
+        if (!validateFullName(value)) {
+            setFieldError(input, errorDiv, '❌ ФИО может содержать только буквы, пробелы и дефисы');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validatePhoneField() {
+        const input = document.getElementById('phone');
+        const errorDiv = document.getElementById('phone-error');
+        const value = input.value;
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        const digits = value.replace(/\D/g, '');
+        
+        if (digits.length === 0) {
+            setFieldError(input, errorDiv, '❌ Введите номер телефона');
+            return false;
+        }
+        
+        if (digits.length !== 10) {
+            setFieldError(input, errorDiv, '❌ Номер должен содержать 10 цифр (например: 9161234567)');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateBirthDateField() {
+        const input = document.getElementById('birthDate');
+        const errorDiv = document.getElementById('birthdate-error');
+        const value = input.value;
+        
+        if (!value) {
+            setFieldError(input, errorDiv, '');
+            return false;
+        }
+        
+        if (!validateAge(value)) {
+            const today = new Date();
+            const birth = new Date(value);
+            let age = today.getFullYear() - birth.getFullYear();
+            const m = today.getMonth() - birth.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+            
+            if (age < 18) {
+                setFieldError(input, errorDiv, '❌ Вам должно быть не менее 18 лет');
+            } else if (age > 130) {
+                setFieldError(input, errorDiv, '❌ Указан некорректный возраст (максимум 130 лет)');
+            } else {
+                setFieldError(input, errorDiv, '❌ Некорректная дата рождения');
+            }
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateAgreement() {
+        const checkbox = document.getElementById('agreeCheckbox');
+        const errorDiv = document.getElementById('agree-error');
+        
+        if (!checkbox.checked) {
+            errorDiv.textContent = '❌ Необходимо принять условия Пользовательского соглашения';
+            errorDiv.style.display = 'block';
+            return false;
+        }
+        
+        errorDiv.textContent = '';
+        errorDiv.style.display = 'none';
+        return true;
+    }
+
+    // ============ ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ ============
+    const phoneInput = document.getElementById('phone');
+    const usernameInput = document.getElementById('username');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('passwordConfirm');
+    const fullNameInput = document.getElementById('fullName');
+    const birthDateInput = document.getElementById('birthDate');
+    const agreeCheckbox = document.getElementById('agreeCheckbox');
+    
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) { 
+            formatPhoneNumber(this); 
+            validatePhoneField();
+        });
+        phoneInput.addEventListener('blur', validatePhoneField);
+        phoneInput.addEventListener('keydown', function(e) {
+            const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            if (!/^[0-9]$/.test(e.key) && !allowedKeys.includes(e.key) && !e.ctrlKey) e.preventDefault();
+        });
+    }
+    
+    if (usernameInput) {
+        usernameInput.addEventListener('input', validateUsernameField);
+        usernameInput.addEventListener('blur', validateUsernameField);
+    }
+    
+    if (emailInput) {
+        emailInput.addEventListener('input', validateEmailField);
+        emailInput.addEventListener('blur', validateEmailField);
+    }
+    
+    if (passwordInput) {
+        passwordInput.addEventListener('input', validatePasswordField);
+        passwordInput.addEventListener('blur', validatePasswordField);
+        passwordInput.addEventListener('input', validatePasswordConfirmField);
+    }
+    
+    if (passwordConfirmInput) {
+        passwordConfirmInput.addEventListener('input', validatePasswordConfirmField);
+        passwordConfirmInput.addEventListener('blur', validatePasswordConfirmField);
+    }
+    
+    if (fullNameInput) {
+        fullNameInput.addEventListener('input', validateFullNameField);
+        fullNameInput.addEventListener('blur', validateFullNameField);
+    }
+    
+    if (birthDateInput) {
+        birthDateInput.addEventListener('input', validateBirthDateField);
+        birthDateInput.addEventListener('blur', validateBirthDateField);
+    }
+    
+    if (agreeCheckbox) {
+        agreeCheckbox.addEventListener('change', validateAgreement);
+    }
+
+    // ============ ВАЛИДАЦИЯ ФОРМЫ ПЕРЕД ОТПРАВКОЙ ============
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+        const errors = [];
+        const errorDiv = document.getElementById('form-errors');
+        
+        // Принудительно проверяем все поля
+        const isUsernameValid = validateUsernameField();
+        const isEmailValid = validateEmailField();
+        const isPasswordValid = validatePasswordField();
+        const isPasswordConfirmValid = validatePasswordConfirmField();
+        const isFullNameValid = validateFullNameField();
+        const isPhoneValid = validatePhoneField();
+        const isBirthDateValid = validateBirthDateField();
+        const isAgreementValid = validateAgreement();
+        
+        // Собираем понятные сообщения об ошибках
+        if (!isUsernameValid) {
+            const usernameValue = document.getElementById('username').value.trim();
+            if (!usernameValue) errors.push('• Логин: поле не заполнено');
+            else if (usernameValue.length < 3) errors.push('• Логин: слишком короткий (минимум 3 символа)');
+            else if (usernameValue.length > 50) errors.push('• Логин: слишком длинный (максимум 50 символов)');
+            else errors.push('• Логин: может содержать только латинские буквы, цифры и символ подчёркивания (_)');
+        }
+        
+        if (!isEmailValid) {
+            const emailValue = document.getElementById('email').value.trim();
+            if (!emailValue) errors.push('• Email: поле не заполнено');
+            else if (!emailValue.includes('@')) errors.push('• Email: отсутствует символ @');
+            else errors.push('• Email: некорректный формат. Пример: username@domain.ru');
+        }
+        
+        if (!isPasswordValid) {
+            const passwordValue = document.getElementById('password').value;
+            if (!passwordValue) errors.push('• Пароль: поле не заполнено');
+            else if (passwordValue.length < 4) errors.push('• Пароль: слишком короткий (минимум 4 символа)');
+        }
+        
+        if (!isPasswordConfirmValid) {
+            const confirmValue = document.getElementById('passwordConfirm').value;
+            if (!confirmValue) errors.push('• Подтверждение пароля: поле не заполнено');
+            else errors.push('• Подтверждение пароля: пароли не совпадают');
+        }
+        
+        if (!isFullNameValid) {
+            const fullNameValue = document.getElementById('fullName').value.trim();
+            if (!fullNameValue) errors.push('• ФИО: поле не заполнено');
+            else if (fullNameValue.length < 5) errors.push('• ФИО: слишком короткое (минимум 5 символов)');
+            else if (fullNameValue.length > 100) errors.push('• ФИО: слишком длинное (максимум 100 символов)');
+            else errors.push('• ФИО: может содержать только буквы, пробелы и дефисы');
+        }
+        
+        if (!isPhoneValid) {
+            const phoneValue = document.getElementById('phone').value;
+            if (!phoneValue) errors.push('• Телефон: поле не заполнено');
+            else {
+                const digits = phoneValue.replace(/\D/g, '');
+                if (digits.length !== 10) errors.push('• Телефон: должен содержать 10 цифр');
+                else errors.push('• Телефон: введите номер в формате XXX XXX-XX-XX');
+            }
+        }
+        
+        if (!isBirthDateValid) {
+            const birthDateValue = document.getElementById('birthDate').value;
+            if (!birthDateValue) errors.push('• Дата рождения: поле не заполнено');
+            else errors.push('• Дата рождения: проверьте корректность даты (18-130 лет)');
+        }
+        
+        if (!isAgreementValid) {
+            errors.push('• Соглашение: необходимо принять условия Пользовательского соглашения');
+        }
+        
+        if (errors.length > 0) {
+            e.preventDefault();
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = '<strong>⚠️ Пожалуйста, исправьте следующие ошибки:</strong><br><br>' + errors.join('<br>');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            const firstErrorField = document.querySelector('.input-error');
+            if (firstErrorField) {
+                firstErrorField.focus();
+            }
+        } else {
+            errorDiv.style.display = 'none';
+        }
+    });
+</script>
+
+<style>
+    .input-error {
+        border: 1px solid #c04e3c !important;
+        background-color: rgba(192, 78, 60, 0.05) !important;
+        outline: none;
+    }
+    .field-error {
+        font-size: 11px;
+        margin-top: 4px;
+    }
+    .auth-form {
+        background: var(--bg-panel);
+        border: 1px solid var(--border-primary);
+        padding: 28px 32px;
+        border-radius: 12px;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+        border-radius: 6px;
+        outline: none;
+        transition: 0.2s;
+    }
+    .form-group input:focus {
+        border-color: var(--border-focus);
+    }
+    .submit-btn {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border: 1px solid var(--btn-border);
+        cursor: pointer;
+        font-size: var(--font-size-sm);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-radius: 6px;
+        transition: 0.25s;
+    }
+    .submit-btn:hover {
+        background: var(--btn-hover-bg);
+        border-color: var(--btn-hover-border);
+        color: var(--btn-hover-text);
+    }
+    .required {
+        color: var(--text-danger);
+    }
+</style>
+{% endblock %}

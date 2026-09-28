@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Водоёмы — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 960px; margin: 0 auto; padding: 20px;">
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="search-filter-bar">
+      <input type="text" id="wbSearch" placeholder="Название водоёма..." 
+             style="flex:2;">
+      <select id="wbRegion" onchange="filterCards()">
+        <option value="">Все регионы</option>
+        {% set regions_list = [] %}
+        {% for wb in waterbodies %}
+          {% if wb.region.name not in regions_list %}
+            {% set _ = regions_list.append(wb.region.name) %}
+            <option value="{{ wb.region.name }}">{{ wb.region.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <select id="wbType" onchange="filterCards()">
+        <option value="">Все типы</option>
+        <option value="река">Река</option>
+        <option value="озеро">Озеро</option>
+        <option value="пруд">Пруд</option>
+        <option value="водохранилище">Водохранилище</option>
+      </select>
+         <button onclick="searchWaterbodies()" class="submit-btn" style="width:auto; padding:8px 20px;">Найти</button>
+    </div>
+    <div id="searchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+  </div>
+
+  <div class="catalog-grid" id="wbGrid">
+    {% for wb in waterbodies %}
+      <a href="{{ url_for('main.waterbody_detail', id=wb.id) }}" class="catalog-card"
+         data-name="{{ wb.name|lower }}" data-region="{{ wb.region.name }}" data-type="{{ wb.type }}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px;">
+          <div class="card-title">{{ wb.name }}</div>
+          <div class="card-subtitle">{{ wb.type }}</div>
+        </div>
+         <div class="card-info">{{ wb.region.name }}{% if wb.area and wb.area != '—' %} • {{ wb.area }}{% endif %}</div>
+        <div class="card-footer">
+          <div class="card-stars">
+            {% set full_stars = (wb.rating or 0)|int %}
+            {% for i in range(full_stars) %}★{% endfor %}{% for i in range(5 - full_stars) %}☆{% endfor %}
+            <span style="color: var(--text-muted); font-size:11px; margin-left:4px;">{{ "%.1f"|format(wb.rating or 0) }}</span>
+          </div>
+         <div class="card-count">{{ wb.reports_count }}</div>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+  <div id="paginationControls" style="display:flex; gap:8px; justify-content:center; margin-top:20px;">
+    {% if pagination.pages > 1 %}
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('main.waterbodies_catalog', page=pagination.prev_num) }}" class="submit-btn" style="width:auto; padding:8px 16px; text-decoration:none;" data-page="{{ pagination.prev_num }}">← Назад</a>
+      {% endif %}
+      <span style="padding:8px; color: var(--text-muted); font-size:12px;">Стр. {{ pagination.page }} из {{ pagination.pages }}</span>
+      {% if pagination.has_next %}
+        <a href="{{ url_for('main.waterbodies_catalog', page=pagination.next_num) }}" class="submit-btn" style="width:auto; padding:8px 16px; text-decoration:none;" data-page="{{ pagination.next_num }}">Вперёд →</a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<script>
+let currentFilters = {
+  q: '',
+  region: '',
+  type: ''
+};
+let allWaterbodies = [];
+let filteredWaterbodies = [];
+
+async function loadAllWaterbodies() {
+  try {
+    const res = await fetch('/api/waterbodies/search?limit=500');
+    const data = await res.json();
+    allWaterbodies = data.items || [];
+    return allWaterbodies;
+  } catch (e) {
+    console.warn('Ошибка загрузки водоёмов:', e);
+    return [];
+  }
+}
+
+async function filterCards() {
+  const q = (document.getElementById('wbSearch')?.value || '').toLowerCase();
+  const region = document.getElementById('wbRegion')?.value || '';
+  const type = document.getElementById('wbType')?.value || '';
+  
+  currentFilters = { q, region, type };
+  
+  if (allWaterbodies.length === 0) {
+    await loadAllWaterbodies();
+  }
+  
+  filteredWaterbodies = allWaterbodies.filter(wb => {
+    const matchName = !q || wb.name.toLowerCase().includes(q);
+    const matchRegion = !region || wb.region_name === region;
+    const matchType = !type || wb.type === type;
+    return matchName && matchRegion && matchType;
+  });
+  
+  const searchStats = document.getElementById('searchStats');
+  if (q || region || type) {
+         searchStats.innerHTML = `Найдено водоёмов: ${filteredWaterbodies.length} из ${allWaterbodies.length}`;
+  } else {
+    searchStats.innerHTML = '';
+  }
+  
+  // Обновляем отображение карточек
+  renderWaterbodies(filteredWaterbodies);
+}
+
+function renderWaterbodies(waterbodies) {
+  const grid = document.getElementById('wbGrid');
+  if (!grid) return;
+  
+  if (waterbodies.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-muted);">Водоёмы не найдены</div>';
+    document.getElementById('paginationControls').style.display = 'none';
+    return;
+  }
+  
+  // Показываем все найденные водоёмы (без пагинации при поиске)
+  grid.innerHTML = waterbodies.map(wb => `
+    <a href="/waterbody/${wb.id}" class="catalog-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px;">
+        <div class="card-title">${escapeHtml(wb.name)}</div>
+        <div class="card-subtitle">${wb.type || ''}</div>
+      </div>
+      <div class="card-info">${escapeHtml(wb.region_name || '')}${wb.area ? ' • ' + wb.area : ''}</div>
+      <div class="card-footer">
+        <div class="card-stars">
+          ${renderStars(wb.rating || 0)}
+          <span style="color: var(--text-muted); font-size:11px; margin-left:4px;">${(wb.rating || 0).toFixed(1)}</span>
+        </div>
+        <div class="card-count">${wb.reports_count || 0}</div>
+      </div>
+    </a>
+  `).join('');
+  
+  document.getElementById('paginationControls').style.display = 'none';
+}
+
+function renderStars(rating) {
+  const full = Math.floor(rating);
+  let stars = '';
+  for (let i = 0; i < full; i++) stars += '★';
+  for (let i = full; i < 5; i++) stars += '☆';
+  return stars;
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function searchWaterbodies() {
+  filterCards();
+}
+
+// Сброс поиска при очистке поля
+document.getElementById('wbSearch')?.addEventListener('input', function(e) {
+  if (!e.target.value) {
+    filterCards();
+  }
+});
+
+// Загрузка всех водоёмов при загрузке страницы
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadAllWaterbodies();
+});
+</script>
+{% endblock %}

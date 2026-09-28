@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 30px auto; padding: 0 20px;">
+    <div class="card" style="padding: 24px;">
+        <h2 style="font-size:var(--font-size-2xl); color:var(--text-heading); margin-bottom:4px;">Личный кабинет</h2>
+         <p style="color:var(--text-muted); font-size:var(--font-size-sm); margin-bottom:20px;">{{ current_user.full_name }} • {{ current_user.email }}</p>
+
+        <!-- Селектор темы -->
+        <div style="margin-bottom:20px;">
+            <label for="themeSelect" style="font-size:var(--font-size-sm); color:var(--text-muted); margin-bottom:6px; display:block;">Тема:</label>
+            <select id="themeSelect" style="padding:8px 12px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                <option value="light">Светлая</option>
+                <option value="dark">Тёмная</option>
+            </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:18px;">
+            <div class="stat-card">
+                <div style="font-size:var(--font-size-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Выездов</div>
+                <div style="font-size:22px; font-weight:800; color:var(--text-heading); margin-top:6px;">{{ stats.total_trips }}</div>
+            </div>
+            <div class="stat-card">
+                <div style="font-size:var(--font-size-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Улов (кг)</div>
+                <div style="font-size:22px; font-weight:800; color:var(--text-heading); margin-top:6px;">{{ stats.total_kg }}</div>
+            </div>
+            <div class="stat-card">
+                <div style="font-size:var(--font-size-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Любимый водоём</div>
+                <div style="font-size:13px; font-weight:700; color:var(--text-accent); margin-top:8px;">{{ stats.fav_waterbody }}</div>
+            </div>
+            <div class="stat-card">
+                <div style="font-size:var(--font-size-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Частая рыба</div>
+                <div style="font-size:13px; font-weight:700; color:var(--text-accent); margin-top:8px;">{{ stats.top_fish }}</div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-bottom:24px;">
+            <a href="{{ url_for('main.report') }}" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding:8px 20px;">+ Новый отчёт</a>
+            {% if current_user.role in ['moderator','admin'] %}
+                <a href="{{ url_for('main.moderate_page') }}" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding:8px 20px;">Модерация</a>
+            {% endif %}
+        </div>
+
+        <!-- Избранные водоёмы (перемещены вверх) -->
+        <h3 style="font-size:var(--font-size-sm); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:14px;">Избранные водоёмы</h3>
+        {% if favorites %}
+            <div style="margin-bottom:22px;">
+                {% for f in favorites %}
+                    <a href="{{ url_for('main.waterbody_detail', id=f.waterbody.id) }}" style="text-decoration: none; color: inherit;">
+                        <div class="popular-item">
+                            <div class="name">{{ f.waterbody.name }}</div>
+                            <div class="info">{{ f.waterbody.region.name }} • рейтинг {{ f.waterbody.rating }}</div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="color:var(--text-muted); margin-bottom:22px; font-size:var(--font-size-sm);">Пока пусто. Добавляйте водоёмы в избранное на их странице.</p>
+        {% endif %}
+
+        <!-- Фильтр по дате (перемещён ближе к отчётам) -->
+        <div class="panel" style="margin-bottom:16px;">
+            <h3>Фильтр по дате</h3>
+            <form method="get" id="filterForm" style="display:flex; gap:10px; flex-wrap:wrap;">
+                <input type="number" name="year" placeholder="Год (например 2026)" value="{{ year or '' }}" min="2000" max="2030" style="flex:1; min-width:160px; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary);">
+                <input type="number" name="month" placeholder="Месяц (1-12)" value="{{ month or '' }}" min="1" max="12" style="flex:1; min-width:140px; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary);">
+                <button class="submit-btn" style="width:auto; padding:9px 14px;">Применить</button>
+                <a href="{{ url_for('main.profile') }}" class="submit-btn" style="width:auto; padding:9px 14px; text-decoration:none; text-align:center;">Сбросить</a>
+            </form>
+        </div>
+
+        <h3 style="font-size:var(--font-size-sm); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:14px;">Мои отчёты ({{ reports|length }})</h3>
+
+        {% if reports %}
+            {% for report in reports %}
+                <div class="report-item">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                        <div style="flex:1; min-width:200px;">
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <a href="{{ url_for('main.view_report', id=report.id) }}" style="color: inherit; text-decoration: none;">
+                                    <strong style="color:var(--text-heading); font-size:var(--font-size-md);">{{ report.waterbody.name }}</strong>
+                                </a>
+                                <span style="font-size:var(--font-size-xs); color:var(--text-muted);">{{ report.date.strftime('%d.%m.%Y') }}</span>
+                            {% if report.status == 'pending' %}
+                                <span style="font-size:var(--font-size-xs); color:var(--text-warning); background:var(--bg-flash-info); border:1px solid var(--border-warning); padding:2px 8px;">На модерации</span>
+                            {% elif report.status == 'approved' %}
+                                <span style="font-size:var(--font-size-xs); color:var(--text-success); background:var(--bg-flash-success); border:1px solid var(--border-success); padding:2px 8px;">Одобрен</span>
+                            {% elif report.status == 'rejected' %}
+                                <span style="font-size:var(--font-size-xs); color:var(--text-danger); background:var(--bg-rejection); border:1px solid var(--border-danger); padding:2px 8px;">Отклонён</span>
+                            {% endif %}
+                            </div>
+                            {% if report.status == 'rejected' and report.rejection_reason %}
+                                <div style="margin-top:8px; padding:8px 12px; background:var(--bg-rejection); border:1px solid var(--border-danger); border-radius:2px;">
+                                    <div style="font-size:var(--font-size-xs); color:var(--text-danger); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Причина отклонения:</div>
+                                    <div style="font-size:var(--font-size-sm); color:var(--text-primary); line-height:1.6;">{{ report.rejection_reason }}</div>
+                                </div>
+                            {% endif %}
+                            {% if report.fish_caught %}
+                                <div style="margin-top:6px;">
+                                    {% set fish_data = report.fish_caught|from_json %}
+                                    {% for item in fish_data %}
+                                        <span class="fish-tag" style="font-size:var(--font-size-xs);">{{ item.name }} {{ item.kg }}кг / {{ item.pcs }}шт</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            {% if report.rating %}
+                                <div style="font-size:var(--font-size-sm); color:var(--text-accent);">
+                                    {% for i in range(report.rating) %}★{% endfor %}{% for i in range(5 - report.rating) %}☆{% endfor %}
+                                </div>
+                            {% endif %}
+                            <button onclick="copyToClipboard('{{ url_for('main.view_report', id=report.id, _external=True) }}')"
+                                    class="submit-btn" style="width:auto; padding:6px 10px; font-size:var(--font-size-xs);">Поделиться</button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p style="color:var(--text-muted); font-size:var(--font-size-sm);">У вас пока нет отчётов. <a href="{{ url_for('main.report') }}" style="color:var(--text-accent);">Создайте первый!</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Theme selector functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const themeSelect = document.getElementById('themeSelect');
+        const html = document.documentElement;
+
+        // Load current theme from localStorage
+        let currentTheme = localStorage.getItem('fisher-app-theme');
+        if (!currentTheme || (currentTheme !== 'light' && currentTheme !== 'dark')) {
+            currentTheme = 'light';
+        }
+
+        // Set the select value to match current theme
+        if (themeSelect) {
+            themeSelect.value = currentTheme;
+
+            themeSelect.addEventListener('change', function() {
+                const newTheme = this.value;
+                currentTheme = newTheme;
+
+                if (newTheme === 'dark') {
+                    html.classList.add('dark-theme');
+                } else {
+                    html.classList.remove('dark-theme');
+                }
+
+                localStorage.setItem('fisher-app-theme', newTheme);
+            });
+        }
+    });
+
+    const filterForm = document.getElementById('filterForm');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(e) {
+            const yearInput = this.querySelector('input[name="year"]');
+            const monthInput = this.querySelector('input[name="month"]');
+            const errors = [];
+            if (yearInput && yearInput.value) { const year = parseInt(yearInput.value); if (isNaN(year) || year < 2000 || year > 2030) errors.push('Год должен быть в диапазоне 2000–2030'); }
+            if (monthInput && monthInput.value) { const month = parseInt(monthInput.value); if (isNaN(month) || month < 1 || month > 12) errors.push('Месяц должен быть от 1 до 12'); }
+            if (errors.length > 0) { e.preventDefault(); alert(errors.join('\n')); }
+        });
+    }
+    window.copyToClipboard = function(text) {
+        if (navigator.clipboard) { navigator.clipboard.writeText(text).then(() => alert('Ссылка скопирована!')); }
+        else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert('Ссылка скопирована!'); }
+    };
+</script>
+{% endblock %}

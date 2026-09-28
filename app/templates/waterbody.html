@@ -1,0 +1,964 @@
+{% extends "base.html" %}
+{% block title %}{{ waterbody.name }} — Рыболов-любитель{% endblock %}
+
+{% block extra_head %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.setAttribute('data-waterbody-id', '{{ waterbody.id }}');
+      document.body.setAttribute('data-region-id', '{{ waterbody.region.id }}');
+    });
+  </script>
+  <style>
+    .forecast-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--font-size-sm);
+    }
+    .forecast-table th {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 2px solid var(--border-primary);
+        color: var(--text-accent);
+        font-weight: 600;
+    }
+    .forecast-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border-tag);
+        vertical-align: middle;
+    }
+    .forecast-bite-bar {
+        flex: 1;
+        height: 8px;
+        background: var(--border-tag);
+        border-radius: 4px;
+        overflow: hidden;
+        max-width: 150px;
+    }
+    .forecast-bite-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    .forecast-score {
+        min-width: 60px;
+        font-weight: 700;
+    }
+    .forecast-grade {
+        font-size: var(--font-size-sm);
+        color: var(--text-muted);
+        min-width: 100px;
+    }
+    .weather-note {
+        font-size: var(--font-size-sm);
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        padding: 8px 12px;
+        background: var(--bg-input);
+        border-radius: 6px;
+    }
+    .gear-info {
+        font-size: var(--font-size-sm);
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        padding: 6px 10px;
+        background: var(--bg-tag);
+        border-radius: 4px;
+    }
+    .restriction-warning {
+        background: var(--bg-rejection);
+        border: 1px solid var(--text-danger);
+        padding: 10px;
+        margin-bottom: 12px;
+        border-radius: 4px;
+        color: var(--text-danger);
+        font-size: var(--font-size-sm);
+    }
+    .gear-tag, .bait-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-radius: 16px;
+        font-size: 12px;
+    }
+    .gear-tag .remove, .bait-tag .remove {
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        line-height: 1;
+        opacity: 0.7;
+    }
+    .gear-tag .remove:hover, .bait-tag .remove:hover {
+        opacity: 1;
+    }
+    .suggestion-item {
+        padding: 8px 10px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-tag);
+        font-size: 13px;
+    }
+    .suggestion-item:hover {
+        background: var(--bg-hover);
+    }
+    .modal-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-tag);
+        border-radius: 20px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .modal-item:hover {
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-color: var(--btn-border);
+    }
+    .modal-item.selected {
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-color: var(--btn-border);
+    }
+    .info-text {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.6;
+    }
+    .fav-btn {
+        position: absolute;
+        top: 14px;
+        right: 18px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-primary);
+        color: var(--text-nav);
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: var(--font-size-sm);
+        border-radius: 6px;
+        transition: 0.25s;
+        z-index: 10;
+    }
+    .fav-btn:hover {
+        border-color: var(--border-hover);
+        color: var(--text-heading);
+        background: var(--bg-hover);
+    }
+    .fav-btn.is-active {
+        border-color: var(--border-hover);
+        color: var(--text-heading);
+        background: var(--bg-hover);
+    }
+    .fav-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 0 auto; padding: 20px;">
+    <a href="{{ url_for('main.index') }}" class="back-link">← Назад к поиску</a>
+
+    <div class="card">
+        <div class="card-header" {% if waterbody.cover_image %}style="background-image: url('{{ url_for('static', filename=waterbody.cover_image) }}'); background-size: cover; background-position: center; position: relative;"{% endif %}>
+            {% if current_user.is_authenticated %}
+                <button class="fav-btn" id="favBtn" title="Добавить в избранное">В ИЗБРАННОЕ</button>
+            {% endif %}
+            {% if waterbody.cover_image %}
+                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 1;"></div>
+            {% endif %}
+            <h1 style="{% if waterbody.cover_image %}position: relative; z-index: 2; color: white; text-shadow: 0 0 5px black;{% endif %}">{{ waterbody.name }}</h1>
+        </div>
+
+        <div class="card-meta">
+            <span>{{ waterbody.region.name }}</span>
+            <span>{{ waterbody.type }}</span>
+            {% if waterbody.area %}
+                <span>Площадь {{ waterbody.area }}</span>
+            {% endif %}
+            <span>Рейтинг {{ waterbody.rating }} / 5</span>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(this, 'tab-info')">Информация</button>
+            <button class="tab-btn" onclick="switchTab(this, 'tab-rules')">Правила рыболовства</button>
+            <button class="tab-btn" onclick="switchTab(this, 'tab-forecast')">Прогноз клёва</button>
+            <button class="tab-btn" onclick="switchTab(this, 'tab-reports')">Отчёты ({{ waterbody.reports_count }})</button>
+        </div>
+
+        <!-- Вкладка: Информация -->
+        <div class="tab-content" id="tab-info">
+            <h3>Описание водоёма</h3>
+            <p class="info-text">{{ waterbody.description or 'Информация отсутствует' }}</p>
+
+            <h3>Видовой состав</h3>
+            <div>
+                {% for fish in fish_list %}
+                    <a href="{{ url_for('main.fish_detail', id=fish.id) }}" style="text-decoration:none;">
+                        <span class="fish-tag">{{ fish.icon }} {{ fish.name }}</span>
+                    </a>
+                {% else %}
+                    <span class="fish-tag">Информация уточняется</span>
+                {% endfor %}
+            </div>
+
+            <h3>Инфраструктура и условия</h3>
+            <p class="info-text">{{ waterbody.infrastructure or 'Информация отсутствует' }}</p>
+
+            <h3>Доступ к водоёму</h3>
+            <p class="info-text">{{ waterbody.access_info or 'Информация отсутствует' }}</p>
+        </div>
+
+            <!-- Вкладка: Правила -->
+            <div class="tab-content" id="tab-rules" style="display:none;">
+                <h3 id="rulesRegionTitle">Действующие ограничения</h3>
+                <p id="rulesRegionBasin" style="font-size:var(--font-size-sm); color:var(--text-muted); margin-bottom: 16px;"></p>
+
+                <!-- Сезонные запреты -->
+                <div id="rulesSeasonalBansContainer" style="margin-bottom: 20px;"></div>
+
+                <!-- Таблица правил -->
+                <div id="rulesTableContainer">
+                    <p style="text-align: center; color: var(--text-muted);">Загрузка правил...</p>
+                </div>
+            </div>
+
+        <!-- Вкладка: Прогноз клёва -->
+        <div class="tab-content" id="tab-forecast" style="display:none;">
+            <h3>Прогноз клёва</h3>
+            
+            <!-- Выбор снастей -->
+            <div class="form-group" style="margin-top:12px;">
+                <label>Планируемые снасти</label>
+                <div style="display:flex; gap:8px;">
+                    <div style="position: relative; flex:1;">
+                        <input type="text" id="gearSearch" placeholder="Начните вводить название снасти..."
+                               style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                        <div id="gearSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;">
+                        </div>
+                    </div>
+                    <button type="button" onclick="showAllGearsModal()" class="submit-btn" style="width:auto; padding:9px 14px; white-space:nowrap;">Все снасти</button>
+                </div>
+                <div id="selectedGears" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                    <div style="color:var(--text-muted); font-size:12px;">Снасти не выбраны (будут показаны все подходящие виды)</div>
+                </div>
+            </div>
+
+            <!-- Выбор наживок -->
+            <div class="form-group" style="margin-top:12px;">
+                <label>Планируемые наживки</label>
+                <div style="display:flex; gap:8px;">
+                    <div style="position: relative; flex:1;">
+                        <input type="text" id="baitSearch" placeholder="Начните вводить название наживки..."
+                               style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                        <div id="baitSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;">
+                        </div>
+                    </div>
+                    <button type="button" onclick="showAllBaitsModal()" class="submit-btn" style="width:auto; padding:9px 14px; white-space:nowrap;">Все наживки</button>
+                </div>
+                <div id="selectedBaits" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                    <div style="color:var(--text-muted); font-size:12px;">Наживки не выбраны (будут показаны все подходящие виды)</div>
+                </div>
+            </div>
+
+            <!-- Дата и время -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:16px; margin-bottom:14px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:var(--font-size-xs);">Дата</label>
+                    {% set min_date = (datetime.now().date() - timedelta(days=7)).isoformat() %}
+                    {% set max_date = (datetime.now().date() + timedelta(days=16)).isoformat() %}
+                    {% set today = datetime.now().date().isoformat() %}
+                    <input type="date" id="wbForecastDate"
+                           min="{{ min_date }}"
+                           max="{{ max_date }}"
+                           value="{{ today }}"
+                           style="width:100%; padding:7px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:var(--font-size-sm);">
+                    <small style="color:var(--text-muted); display:block; margin-top:2px; font-size:9px;">
+                         {{ (datetime.now().date() - timedelta(days=7)).strftime('%d.%m') }} — {{ (datetime.now().date() + timedelta(days=16)).strftime('%d.%m') }}
+                    </small>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:var(--font-size-xs);">Время суток</label>
+                    <select id="wbForecastTime" style="width:100%; padding:7px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:var(--font-size-sm);">
+                        <option value="morning">Утро (06:00)</option>
+                        <option value="day" selected>День (13:00)</option>
+                        <option value="evening">Вечер (20:00)</option>
+                        <option value="night">Ночь (02:00)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="loadWbForecast()" class="submit-btn" style="width:100%; padding:10px 24px; margin-top:12px;">
+                Рассчитать прогноз
+            </button>
+
+            <div id="forecastBox" style="margin-top:20px; color:var(--text-muted);">
+                <div style="text-align:center; padding:20px;">
+                    Выберите параметры и нажмите «Рассчитать прогноз»
+                </div>
+            </div>
+        </div>
+
+        <!-- Вкладка: Отчёты -->
+        <div class="tab-content" id="tab-reports" style="display:none;">
+            <h3>Последние отчёты рыбаков</h3>
+            {% if reports %}
+                {% for report in reports %}
+                    <div class="report-item" style="padding:12px; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong style="color:var(--text-heading);">{{ report.user.full_name }}</strong>
+                            <span style="font-size:var(--font-size-xs); color:var(--text-muted);">{{ report.date.strftime('%d.%m.%Y') }}</span>
+                        </div>
+                        {% if report.fish_caught %}
+                            <div style="margin-top:6px;">
+                                {% set fish_data = report.fish_caught|from_json %}
+                                {% for item in fish_data %}
+                                    <span class="fish-tag" style="font-size:var(--font-size-xs);">{{ item.name }} {{ item.kg }}кг / {{ item.pcs }}шт</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                     {% if report.description %}
+                         <p style="font-size:var(--font-size-sm); color:var(--text-primary); margin-top:6px; white-space: pre-wrap; word-wrap: break-word;">{{ report.description[:200] }}{% if report.description|length > 200 %}...{% endif %}</p>
+                     {% endif %}
+                     {% if report.rating %}
+                         <div style="font-size:var(--font-size-sm); color:var(--text-accent); margin-top:4px;">
+                             {% for i in range(report.rating) %}★{% endfor %}{% for i in range(5 - report.rating) %}☆{% endfor %}
+                         </div>
+                     {% endif %}
+
+                     <!-- Галерея изображений отчёта -->
+                     {% if report.images and report.images|length > 0 %}
+                         <div style="margin-top:8px;">
+                             <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:6px;">
+                                 {% for image in report.images %}
+                                     <a href="{{ url_for('main.view_report', id=report.id) }}" style="text-decoration:none;">
+                                         <img src="{{ url_for('static', filename='uploads/reports/' + image.filename) }}"
+                                              alt="{{ image.original_name }}"
+                                              style="width:100%; height:80px; object-fit:cover; border-radius:4px; border:1px solid var(--border-tag);">
+                                     </a>
+                                 {% endfor %}
+                             </div>
+                         </div>
+                     {% endif %}
+
+                        <div style="margin-top:10px; border-top:1px solid var(--border-tag); padding-top:10px;">
+                            <div style="font-size:var(--font-size-xs); color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Комментарии</div>
+                            {% if report.comments %}
+                                {% for c in report.comments %}
+                                    <div style="font-size:var(--font-size-sm); color:var(--text-primary); margin-bottom:6px;">
+                                        <strong style="color:var(--text-heading);">{{ c.user.full_name }}</strong>
+                                        <span style="color:var(--text-muted); font-size:var(--font-size-xs);">• {{ c.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                                        <div style="margin-top:2px; white-space: pre-wrap; word-wrap: break-word;">{{ c.text }}</div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="color:var(--text-muted); font-size:var(--font-size-sm);">Пока нет комментариев.</div>
+                            {% endif %}
+
+                            {% if current_user.is_authenticated %}
+                                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                    <input type="text" placeholder="Оставить комментарий…" data-comment-input="{{ report.id }}"
+                                           style="flex:1; min-width:240px; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary);">
+                                    <button class="submit-btn" style="width:auto; padding:9px 14px;" onclick="postComment({{ report.id }}, this)">Отправить</button>
+                                </div>
+                            {% else %}
+                                <div style="color:var(--text-muted); font-size:var(--font-size-sm); margin-top:8px;">Войдите, чтобы оставлять комментарии.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p style="color:var(--text-muted);">Отчётов пока нет. Будьте первым!</p>
+            {% endif %}
+
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.report', waterbody_name=waterbody.name) }}" class="submit-btn" style="display:inline-block; margin-top:12px; text-decoration:none;">+ Добавить отчёт</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальные окна -->
+<div id="allGearsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Все снасти</h3>
+            <button onclick="closeAllGearsModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div id="allGearsList" style="padding:16px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+</div>
+
+<div id="allBaitsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Все наживки</h3>
+            <button onclick="closeAllBaitsModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div id="allBaitsList" style="padding:16px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+    let allGears = [];
+    let allBaits = [];
+    let selectedGears = [];
+    let selectedBaits = [];
+    
+    // ============ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ CSRF-ТОКЕНА ============
+    function getCSRFToken() {
+        const csrfInput = document.querySelector('#csrfForm input[name="csrf_token"]');
+        return csrfInput ? csrfInput.value : '';
+    }
+    
+    // ============ СОХРАНЕНИЕ АКТИВНОЙ ВКЛАДКИ ============
+    function saveActiveTab() {
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab) {
+            const tabId = activeTab.getAttribute('onclick').match(/'(tab-[^']+)'/)[1];
+            sessionStorage.setItem('activeTab', tabId);
+        }
+    }
+    
+    function restoreActiveTab() {
+        const savedTab = sessionStorage.getItem('activeTab');
+        if (savedTab) {
+            const tabBtn = document.querySelector(`.tab-btn[onclick*="${savedTab}"]`);
+            if (tabBtn) {
+                const tabId = savedTab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+                tabBtn.classList.add('active');
+                document.getElementById(tabId).style.display = 'block';
+            }
+            sessionStorage.removeItem('activeTab');
+        }
+    }
+    
+    // ============ ИЗБРАННОЕ ============
+    async function toggleFavorite(waterbodyId) {
+        const favBtn = document.getElementById('favBtn');
+        if (!favBtn) return;
+        
+        const originalText = favBtn.textContent;
+        favBtn.textContent = ' Обработка...';
+        favBtn.disabled = true;
+        
+        try {
+            const csrfToken = getCSRFToken();
+            
+            const response = await fetch(`/api/favorites/toggle/${waterbodyId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.is_favorite) {
+                    favBtn.classList.add('is-active');
+                    favBtn.textContent = '★ В ИЗБРАННОМ';
+                    showFlashMessage('success', 'Водоём добавлен в избранное');
+                } else {
+                    favBtn.classList.remove('is-active');
+                    favBtn.textContent = '★ В ИЗБРАННОЕ';
+                    showFlashMessage('success', 'Водоём удалён из избранного');
+                }
+            } else if (response.status === 403) {
+                console.error('CSRF validation failed');
+                favBtn.textContent = originalText;
+                alert('Ошибка безопасности. Пожалуйста, обновите страницу и попробуйте снова.');
+            } else {
+                favBtn.textContent = originalText;
+                alert('Ошибка при добавлении в избранное. Попробуйте позже.');
+            }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            favBtn.textContent = originalText;
+            alert('Ошибка соединения. Проверьте интернет-соединение.');
+        } finally {
+            favBtn.disabled = false;
+        }
+    }
+    
+    async function initFavoriteStatus(waterbodyId) {
+        if (!waterbodyId) return;
+        try {
+            const response = await fetch(`/api/favorites/status/${waterbodyId}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const favBtn = document.getElementById('favBtn');
+                if (favBtn) {
+                    if (data.is_favorite) {
+                        favBtn.classList.add('is-active');
+                        favBtn.textContent = '★ В ИЗБРАННОМ';
+                    } else {
+                        favBtn.classList.remove('is-active');
+                        favBtn.textContent = '★ В ИЗБРАННОЕ';
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки статуса избранного:', error);
+        }
+    }
+    
+    function showFlashMessage(category, message) {
+        const flashContainer = document.querySelector('.flash-messages');
+        if (flashContainer) {
+            const flashDiv = document.createElement('div');
+            flashDiv.className = `flash-message flash-${category}`;
+            flashDiv.textContent = message;
+            flashContainer.appendChild(flashDiv);
+            setTimeout(() => {
+                flashDiv.remove();
+            }, 3000);
+        }
+    }
+    
+    // ============ ЗАГРУЗКА СПИСКОВ СНАСТЕЙ И НАЖИВОК ============
+    async function loadAllGearsAndBaits() {
+        try {
+            const gearRes = await fetch(`/api/gears/all`);
+            const gearData = await gearRes.json();
+            allGears = gearData.gears || [];
+            
+            const baitRes = await fetch(`/api/baits/all`);
+            const baitData = await baitRes.json();
+            allBaits = baitData.baits || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки снастей/наживок:', e);
+        }
+    }
+    
+    // ============ ОТОБРАЖЕНИЕ ПОДСКАЗОК ДЛЯ СНАСТЕЙ ============
+    function showGearSuggestions(query) {
+        const suggestionsDiv = document.getElementById('gearSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allGears.filter(gear => 
+            gear.toLowerCase().includes(query.toLowerCase()) && 
+            !selectedGears.includes(gear)
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(gear => 
+            `<div class="suggestion-item" onclick="selectGear('${gear.replace(/'/g, "\\'")}')">${gear}</div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+    }
+    
+    function selectGear(gear) {
+        if (!selectedGears.includes(gear)) {
+            selectedGears.push(gear);
+            renderSelectedGears();
+        }
+        document.getElementById('gearSearch').value = '';
+        document.getElementById('gearSuggestions').style.display = 'none';
+    }
+    
+    function removeGear(gear) {
+        selectedGears = selectedGears.filter(g => g !== gear);
+        renderSelectedGears();
+    }
+    
+    function renderSelectedGears() {
+        const container = document.getElementById('selectedGears');
+        if (selectedGears.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Снасти не выбраны (будут показаны все подходящие виды)</div>';
+            return;
+        }
+        container.innerHTML = selectedGears.map(gear => `
+            <div class="gear-tag">
+                ${gear}
+                <span class="remove" onclick="removeGear('${gear.replace(/'/g, "\\'")}')">✕</span>
+            </div>
+        `).join('');
+    }
+    
+    // ============ ОТОБРАЖЕНИЕ ПОДСКАЗОК ДЛЯ НАЖИВОК ============
+    function showBaitSuggestions(query) {
+        const suggestionsDiv = document.getElementById('baitSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allBaits.filter(bait => 
+            bait.toLowerCase().includes(query.toLowerCase()) && 
+            !selectedBaits.includes(bait)
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(bait => 
+            `<div class="suggestion-item" onclick="selectBait('${bait.replace(/'/g, "\\'")}')">${bait}</div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+    }
+    
+    function selectBait(bait) {
+        if (!selectedBaits.includes(bait)) {
+            selectedBaits.push(bait);
+            renderSelectedBaits();
+        }
+        document.getElementById('baitSearch').value = '';
+        document.getElementById('baitSuggestions').style.display = 'none';
+    }
+    
+    function removeBait(bait) {
+        selectedBaits = selectedBaits.filter(b => b !== bait);
+        renderSelectedBaits();
+    }
+    
+    function renderSelectedBaits() {
+        const container = document.getElementById('selectedBaits');
+        if (selectedBaits.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Наживки не выбраны (будут показаны все подходящие виды)</div>';
+            return;
+        }
+        container.innerHTML = selectedBaits.map(bait => `
+            <div class="bait-tag">
+                ${bait}
+                <span class="remove" onclick="removeBait('${bait.replace(/'/g, "\\'")}')">✕</span>
+            </div>
+        `).join('');
+    }
+    
+    // ============ МОДАЛЬНЫЕ ОКНА ============
+    function showAllGearsModal() {
+        const modal = document.getElementById('allGearsModal');
+        const listContainer = document.getElementById('allGearsList');
+        
+        listContainer.innerHTML = allGears.map(gear => `
+            <div class="modal-item ${selectedGears.includes(gear) ? 'selected' : ''}" onclick="toggleGearFromModal('${gear.replace(/'/g, "\\'")}')">
+                ${gear}
+            </div>
+        `).join('');
+        modal.style.display = 'flex';
+    }
+    
+    function closeAllGearsModal() {
+        document.getElementById('allGearsModal').style.display = 'none';
+    }
+    
+    function toggleGearFromModal(gear) {
+        if (selectedGears.includes(gear)) {
+            selectedGears = selectedGears.filter(g => g !== gear);
+        } else {
+            selectedGears.push(gear);
+        }
+        renderSelectedGears();
+        const listContainer = document.getElementById('allGearsList');
+        if (listContainer) {
+            listContainer.innerHTML = allGears.map(g => `
+                <div class="modal-item ${selectedGears.includes(g) ? 'selected' : ''}" onclick="toggleGearFromModal('${g.replace(/'/g, "\\'")}')">
+                    ${g}
+                </div>
+            `).join('');
+        }
+    }
+    
+    function showAllBaitsModal() {
+        const modal = document.getElementById('allBaitsModal');
+        const listContainer = document.getElementById('allBaitsList');
+        
+        listContainer.innerHTML = allBaits.map(bait => `
+            <div class="modal-item ${selectedBaits.includes(bait) ? 'selected' : ''}" onclick="toggleBaitFromModal('${bait.replace(/'/g, "\\'")}')">
+                ${bait}
+            </div>
+        `).join('');
+        modal.style.display = 'flex';
+    }
+    
+    function closeAllBaitsModal() {
+        document.getElementById('allBaitsModal').style.display = 'none';
+    }
+    
+    function toggleBaitFromModal(bait) {
+        if (selectedBaits.includes(bait)) {
+            selectedBaits = selectedBaits.filter(b => b !== bait);
+        } else {
+            selectedBaits.push(bait);
+        }
+        renderSelectedBaits();
+        const listContainer = document.getElementById('allBaitsList');
+        if (listContainer) {
+            listContainer.innerHTML = allBaits.map(b => `
+                <div class="modal-item ${selectedBaits.includes(b) ? 'selected' : ''}" onclick="toggleBaitFromModal('${b.replace(/'/g, "\\'")}')">
+                    ${b}
+                </div>
+            `).join('');
+        }
+    }
+    
+    // ============ ОСНОВНЫЕ ФУНКЦИИ ============
+    function switchTab(btn, tabId) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        btn.classList.add('active');
+        document.getElementById(tabId).style.display = 'block';
+
+        // Загружаем правила если переключаемся на вкладку правил
+        if (tabId === 'tab-rules') {
+            loadRulesForWaterbody();
+        }
+    }
+
+    // ============ ЗАГРУЗКА ПРАВИЛ ДЛЯ ВОДОЁМА ============
+    async function loadRulesForWaterbody() {
+        const waterbodyId = document.body.getAttribute('data-waterbody-id');
+        if (!waterbodyId) {
+            console.error('Waterbody ID not found');
+            return;
+        }
+
+        // Получаем regionId из data-атрибута или используем значение по умолчанию
+        const regionId = document.body.getAttribute('data-region-id') || 1;
+        const title = document.getElementById('rulesRegionTitle');
+        const basin = document.getElementById('rulesRegionBasin');
+        const seasonalBansContainer = document.getElementById('rulesSeasonalBansContainer');
+        const rulesTableContainer = document.getElementById('rulesTableContainer');
+
+        // Показываем индикатор загрузки
+        rulesTableContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Загрузка...</p>';
+
+        try {
+            const response = await fetch(`/api/regions/${regionId}/rules`);
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки правил');
+            }
+
+            const data = await response.json();
+
+            if (!data.ok || !data.region) {
+                rulesTableContainer.innerHTML = '<p style="text-align: center; color: var(--text-danger);">Правила для этого региона не найдены</p>';
+                return;
+            }
+
+            // Отображаем информацию о регионе
+            title.textContent = `Действующие ограничения (${data.region.basin} бассейн)`;
+            basin.textContent = `${data.region.name}`;
+
+            // Отображаем сезонные запреты
+            if (data.seasonal_bans && data.seasonal_bans.length > 0) {
+                let bansHtml = '<div class="restriction-warning" style="margin-bottom: 20px;">';
+                bansHtml += '<h4 style="margin-top: 0; margin-bottom: 8px;">Сезонные запреты:</h4>';
+                bansHtml += '<ul style="margin: 0; padding-left: 20px;">';
+
+                data.seasonal_bans.forEach(ban => {
+                    const startDate = ban.ban_start ? new Date(ban.ban_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '?';
+                    const endDate = ban.ban_end ? new Date(ban.ban_end).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '?';
+                    bansHtml += `<li>${ban.description} (${startDate} — ${endDate})</li>`;
+                });
+
+                bansHtml += '</ul></div>';
+                seasonalBansContainer.innerHTML = bansHtml;
+            } else {
+                seasonalBansContainer.innerHTML = '';
+            }
+
+            // Отображаем таблицу правил
+            if (data.regional_rules && data.regional_rules.length > 0) {
+                let tableHtml = `
+                    <table class="rules-table" style="width: 100%; margin-top: 16px;">
+                        <thead>
+                            <tr>
+                                <th>Вид рыбы</th>
+                                <th>Мин. размер (см)</th>
+                                <th>Норма (кг/сутки)</th>
+                                <th>Норма (шт/сутки)</th>
+                                <th>Нерестовый запрет</th>
+                                <th>Запрещённые снасти</th>
+                                <th>Разрешённые снасти</th>
+                                <th>Полный запрет</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                data.regional_rules.forEach(rule => {
+                    const banPeriod = rule.ban_start && rule.ban_end
+                        ? `${new Date(rule.ban_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} — ${new Date(rule.ban_end).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`
+                        : 'Нет';
+
+                    const allowedGear = rule.allowed_gear && rule.allowed_gear.length > 0
+                        ? rule.allowed_gear.join(', ')
+                        : 'Уточняется';
+
+                    const prohibitedGear = rule.prohibited_gear && rule.prohibited_gear.length > 0
+                        ? rule.prohibited_gear.join(', ')
+                        : 'Нет';
+
+                    const isProhibited = rule.is_prohibited ? 'Запрещён' : 'Разрешён';
+
+                    const rowStyle = rule.is_prohibited
+                        ? 'background-color: var(--bg-rejection); color: var(--text-danger);'
+                        : '';
+
+                    tableHtml += `
+                        <tr style="${rowStyle}">
+                            <td>${rule.fish_name}</td>
+                            <td>${rule.min_size_cm || '—'}</td>
+                            <td>${rule.daily_limit_kg || '—'}</td>
+                            <td>${rule.daily_limit_pcs || '—'}</td>
+                            <td>${banPeriod}</td>
+                            <td>${prohibitedGear}</td>
+                            <td>${allowedGear}</td>
+                            <td>${isProhibited}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += `
+                        </tbody>
+                    </table>
+                `;
+
+                rulesTableContainer.innerHTML = tableHtml;
+            } else {
+                rulesTableContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Правила для видов рыб не найдены</p>';
+            }
+
+        } catch (error) {
+            console.error('Ошибка:', error);
+            rulesTableContainer.innerHTML = '<p style="text-align: center; color: var(--text-danger);">Ошибка загрузки правил. Пожалуйста, попробуйте позже.</p>';
+        }
+    }
+
+    // ============ ФУНКЦИЯ ДЛЯ ОТПРАВКИ КОММЕНТАРИЯ ============
+    async function postComment(reportId, button) {
+        const reportItem = button.closest('.report-item');
+        const input = reportItem.querySelector(`[data-comment-input="${reportId}"]`);
+        if (!input) return;
+        const text = (input.value || '').trim();
+        if (!text) {
+            alert('Напишите комментарий');
+            return;
+        }
+        
+        // Сохраняем текущую активную вкладку
+        saveActiveTab();
+        
+        try {
+            const csrfToken = getCSRFToken();
+            
+            const res = await fetch(`/api/reports/${reportId}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ text }),
+                credentials: 'same-origin'
+            });
+            
+            if (res.ok) {
+                location.reload();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Ошибка при отправке комментария');
+            }
+        } catch (e) {
+            console.error('Ошибка:', e);
+            alert('Ошибка соединения. Проверьте интернет-соединение.');
+        }
+    }
+
+    async function loadWbForecast() {
+        const wbId = document.body.getAttribute('data-waterbody-id');
+        const targetDate = document.getElementById('wbForecastDate')?.value || '';
+        const timeOfDay = document.getElementById('wbForecastTime')?.value || 'morning';
+        const box = document.getElementById('forecastBox');
+        
+        if (!wbId) {
+            box.innerHTML = '<div style="color:var(--text-danger); text-align:center; padding:20px;"> Ошибка: водоём не найден</div>';
+            return;
+        }
+        
+        box.innerHTML = '<div style="text-align:center; padding:20px;"> Загрузка прогноза...</div>';
+        
+        try {
+            const params = new URLSearchParams({ 
+                date: targetDate, 
+                time: timeOfDay,
+                gears: selectedGears.join(','),
+                baits: selectedBaits.join(',')
+            });
+            const res = await fetch(`/api/waterbodies/${wbId}/forecast?${params}`, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            box.innerHTML = data.html || '<div style="color:var(--text-muted); text-align:center; padding:20px;">Данные прогноза недоступны</div>';
+        } catch (e) { 
+            box.innerHTML = '<div style="color:var(--text-danger); text-align:center; padding:20px;"> Ошибка загрузки прогноза</div>';
+        }
+    }
+    
+    // ============ ОБРАБОТЧИКИ СОБЫТИЙ ============
+    document.getElementById('gearSearch')?.addEventListener('input', (e) => {
+        showGearSuggestions(e.target.value);
+    });
+    
+    document.getElementById('baitSearch')?.addEventListener('input', (e) => {
+        showBaitSuggestions(e.target.value);
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#gearSearch') && !e.target.closest('#gearSuggestions')) {
+            const suggestions = document.getElementById('gearSuggestions');
+            if (suggestions) suggestions.style.display = 'none';
+        }
+        if (!e.target.closest('#baitSearch') && !e.target.closest('#baitSuggestions')) {
+            const suggestions = document.getElementById('baitSuggestions');
+            if (suggestions) suggestions.style.display = 'none';
+        }
+    });
+    
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', () => {
+        // Восстанавливаем активную вкладку после перезагрузки
+        restoreActiveTab();
+        
+        const waterbodyId = document.body.getAttribute('data-waterbody-id');
+        if (waterbodyId) {
+            initFavoriteStatus(waterbodyId);
+            
+            const favBtn = document.getElementById('favBtn');
+            if (favBtn) {
+                favBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    toggleFavorite(waterbodyId);
+                });
+            }
+        }
+        
+        loadAllGearsAndBaits();
+        renderSelectedGears();
+        renderSelectedBaits();
+    });
+</script>
+{% endblock %}

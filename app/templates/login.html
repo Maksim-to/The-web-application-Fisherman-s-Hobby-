@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Вход — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="auth-form" style="max-width:420px; margin:60px auto;">
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); letter-spacing:1px; margin-bottom:6px;">ВХОД В СИСТЕМУ</h2>
+    <p style="font-size:var(--font-size-sm); color:var(--text-muted); margin-bottom:22px;">Доступ к личному кабинету, отчётам и избранному</p>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Логин</label>
+            <input type="text" name="username" required autocomplete="username" value="{{ username_value }}">
+        </div>
+        <div class="form-group">
+            <label>Пароль</label>
+            <input type="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="submit-btn" style="margin-top:10px;">Войти</button>
+    </form>
+
+    <p style="margin-top:16px; font-size:var(--font-size-sm); color:var(--text-muted); text-align:center;">
+        Нет аккаунта? <a href="{{ url_for('main.register') }}" style="color:var(--text-accent);">Зарегистрируйтесь</a>
+    </p>
+</div>
+{% endblock %}

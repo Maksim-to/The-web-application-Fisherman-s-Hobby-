@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Управление снастями — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">← Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Управление снастями</h2>
+
+    <!-- Форма создания / редактирования -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="gearFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Добавить снасть</h3>
+        <form method="POST" id="gearForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="gearAction" value="create">
+            <input type="hidden" name="gear_id" id="gearId" value="">
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Название <span class="required">*</span></label>
+                    <input type="text" name="name" id="gearName" required 
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Категория</label>
+                    <select name="category" id="gearCategory" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <option value="">— Выберите категорию —</option>
+                        <option value="спиннинг">Спиннинг</option>
+                        <option value="фидер">Фидер</option>
+                        <option value="поплавок">Поплавочная</option>
+                        <option value="донная">Донная</option>
+                        <option value="зимняя">Зимняя</option>
+                        <option value="карповая">Карповая</option>
+                        <option value="лодочная">Лодочная</option>
+                        <option value="нахлыст">Нахлыст</option>
+                        <option value="катушка">Катушка</option>
+                        <option value="электроника">Электроника</option>
+                        <option value="живец">Живец</option>
+                        <option value="сеть">Сеть</option>
+                        <option value="ловушка">Ловушка</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Изображение</label>
+                    <input type="file" name="image" id="gearImageFile" accept="image/*">
+                    <div id="currentGearImagePreview" style="margin-top:5px;"></div>
+                    <small style="color:var(--text-muted);">Рекомендуемый размер: 600x400px</small>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:8px;">
+                <label>Описание</label>
+                <textarea name="description" id="gearDesc" rows="3" placeholder="Подробное описание снасти..."
+                          style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button type="submit" class="submit-btn" id="gearSubmitBtn" style="width:auto; padding:6px 16px;">Добавить</button>
+                <button type="button" class="submit-btn" id="gearCancelBtn" onclick="cancelGearEdit()" style="width:auto; padding:6px 16px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Панель поиска -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+                <input type="text" id="searchGear" placeholder="Поиск по названию снасти..."
+                       style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            </div>
+            <button onclick="clearGearSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+        </div>
+        <div id="gearSearchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Таблица снастей -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все снасти (<span id="gearTotalCount">{{ gears|length }}</span>)</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary);">
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Название</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Категория</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Описание</th>
+                        <th style="padding:8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    <tr>
+                </thead>
+                <tbody id="gearTableBody">
+                    {% for g in gears %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" id="gear-row-{{ g.id }}" data-gear-name="{{ g.name|lower }}">
+                        <td style="padding:8px; color:var(--text-primary); font-weight:600;">{{ g.name }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ g.category or '—' }}</td>
+                        <td style="padding:8px; color:var(--text-muted); max-width:300px;">
+                            {{ g.description[:60] }}{% if g.description and g.description|length > 60 %}...{% endif %}
+                        </td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                <button onclick="editGear({{ g.id }}, '{{ g.name }}', '{{ g.category }}', `{{ g.description|replace('`', '\\`')|safe }}`, '{{ g.image }}')" 
+                                        class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px;">Редактировать</button>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить снасть {{ g.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="gear_id" value="{{ g.id }}">
+                                    <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not gears %}
+            <div style="color:var(--text-muted); padding:20px; text-align:center;">Нет снастей в базе данных.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function filterGear() {
+        const searchTerm = document.getElementById('searchGear').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#gearTableBody tr');
+        const statsDiv = document.getElementById('gearSearchStats');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const name = row.getAttribute('data-gear-name') || '';
+            if (!searchTerm || name.includes(searchTerm)) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        const totalCount = rows.length;
+        if (searchTerm) {
+            statsDiv.innerHTML = `Найдено: ${visibleCount} из ${totalCount} снастей`;
+        } else {
+            statsDiv.innerHTML = '';
+        }
+        document.getElementById('gearTotalCount').textContent = visibleCount;
+    }
+    
+    function clearGearSearch() {
+        document.getElementById('searchGear').value = '';
+        filterGear();
+    }
+    
+    function editGear(id, name, category, desc, image) {
+        document.getElementById('gearFormTitle').textContent = 'Редактировать снасть';
+        document.getElementById('gearAction').value = 'edit';
+        document.getElementById('gearId').value = id;
+        document.getElementById('gearName').value = name;
+        document.getElementById('gearCategory').value = category;
+        document.getElementById('gearDesc').value = desc;
+
+        // Отображение текущего изображения
+        const previewContainer = document.getElementById('currentGearImagePreview');
+        if (image) {
+            previewContainer.innerHTML = `
+                <div style="margin-top:8px; padding:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:4px;">
+                    <img src="{{ url_for('static', filename='') }}${image}" style="max-height:80px; border-radius:4px;">
+                    <div style="margin-top:4px; font-size:11px; color:var(--text-muted);">Текущее изображение</div>
+                </div>
+            `;
+        } else {
+            previewContainer.innerHTML = '';
+        }
+
+        document.getElementById('gearSubmitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('gearCancelBtn').style.display = 'block';
+        document.getElementById('gearFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function cancelGearEdit() {
+        document.getElementById('gearForm').reset();
+        document.getElementById('gearFormTitle').textContent = 'Добавить снасть';
+        document.getElementById('gearAction').value = 'create';
+        document.getElementById('gearId').value = '';
+        document.getElementById('gearSubmitBtn').innerHTML = 'Добавить';
+        document.getElementById('gearCancelBtn').style.display = 'none';
+    }
+    
+    document.getElementById('searchGear')?.addEventListener('input', filterGear);
+    document.getElementById('searchGear')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') filterGear();
+    });
+</script>
+{% endblock %}

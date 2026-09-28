@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Модерация — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 0 auto; padding: 20px;">
+  <div class="panel">
+    <h3>Модерация отчётов</h3>
+    <div style="color:var(--text-muted); font-size:12px; margin-top:6px;">
+      Доступно ролям <strong>moderator</strong> и <strong>admin</strong>.
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    {% if reports %}
+      {% for r in reports %}
+        <div style="padding:14px; margin-bottom:12px; background:var(--bg-card); border:1px solid var(--border-tag); border-radius:6px;">
+          <!-- Заголовок отчёта -->
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div>
+              <strong style="color:var(--text-heading);">{{ r.waterbody.name }}</strong>
+              <span style="font-size:11px; color:var(--text-muted); margin-left:10px;">
+                {{ r.user.full_name }} • {{ r.date.strftime('%d.%m.%Y') }}
+              </span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <a href="{{ url_for('main.view_report', id=r.id) }}"
+                 class="submit-btn"
+                 style="width:auto; padding:7px 12px; text-decoration:none; display:inline-block; font-size:12px;">
+                Смотреть полностью
+              </a>
+              <button class="submit-btn" style="width:auto; padding:7px 12px; font-size:12px;"
+                      onclick="approveReport({{ r.id }})">
+                Одобрить
+              </button>
+              <button class="submit-btn" style="width:auto; padding:7px 12px; font-size:12px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);"
+                      onclick="showRejectForm({{ r.id }})">
+                Отклонить
+              </button>
+            </div>
+          </div>
+
+          <!-- Краткое описание - исправлено удаление пробелов -->
+          {% if r.description %}
+            <p style="margin-top:10px; color:var(--text-primary); font-size:13px; line-height:1.6; white-space: pre-wrap; word-wrap: break-word;">
+              {{- r.description.strip()[:200] -}}{% if r.description|length > 200 %}...{% endif %}
+            </p>
+          {% endif %}
+
+          <!-- Улов -->
+          {% if r.fish_caught %}
+            <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
+              {% set fish_data = r.fish_caught|from_json %}
+              {% for item in fish_data %}
+                <span class="fish-tag" style="font-size:11px;">{{ item.name }} {{ item.kg }}кг / {{ item.pcs }}шт</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <!-- Погода -->
+          <div style="margin-top:8px; font-size:11px; color:var(--text-muted); display:flex; flex-wrap:wrap; gap:12px;">
+            {% if r.weather_temp %} {{ r.weather_temp }}°C{% endif %}
+            {% if r.weather_pressure %} {{ r.weather_pressure }} мм{% endif %}
+            {% if r.weather_wind_speed %} {{ r.weather_wind_speed }} м/с{% endif %}
+            {% if r.weather_clouds %} {{ r.weather_clouds }}{% endif %}
+          </div>
+
+          <!-- Форма отклонения (изначально скрыта) -->
+          <div id="rejectForm{{ r.id }}" style="display:none; margin-top:14px; padding:14px; background:var(--bg-rejection); border:1px solid var(--border-danger); border-radius:6px;">
+            <div style="color:var(--text-danger); font-size:12px; margin-bottom:8px; font-weight:700;">
+               Укажите причину отклонения:
+            </div>
+            <textarea id="rejectReason{{ r.id }}" 
+                      placeholder="Опишите, что нужно исправить в отчёте..." 
+                      rows="3"
+                      style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-danger); color:var(--text-primary); font-size:12px; resize:vertical; border-radius:4px;"></textarea>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="submit-btn" style="width:auto; padding:6px 14px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);" 
+                      onclick="rejectReport({{ r.id }})">
+                Подтвердить отклонение
+              </button>
+              <button class="submit-btn" style="width:auto; padding:6px 14px; font-size:11px;" 
+                      onclick="hideRejectForm({{ r.id }})">
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div style="color:var(--text-muted); padding:20px; text-align:center;">
+        Нет отчётов, ожидающих модерации
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Скрытая форма для получения CSRF-токена -->
+<form id="csrfForm" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Функция для получения CSRF-токена из скрытой формы
+  function getCSRFToken() {
+    const tokenInput = document.querySelector('#csrfForm input[name="csrf_token"]');
+    return tokenInput ? tokenInput.value : '';
+  }
+
+  // Показать форму отклонения
+  function showRejectForm(reportId) {
+    document.getElementById('rejectForm' + reportId).style.display = 'block';
+    document.getElementById('rejectForm' + reportId).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => {
+      document.getElementById('rejectReason' + reportId).focus();
+    }, 300);
+  }
+
+  // Скрыть форму отклонения
+  function hideRejectForm(reportId) {
+    document.getElementById('rejectForm' + reportId).style.display = 'none';
+    document.getElementById('rejectReason' + reportId).value = '';
+  }
+
+  async function post(url, payload = null) {
+    const csrfToken = getCSRFToken();
+    const options = {
+      method: 'POST',
+      headers: { 
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      credentials: 'same-origin'
+    };
+    
+    // Добавляем CSRF-токен в заголовок
+    if (csrfToken) {
+      options.headers['X-CSRFToken'] = csrfToken;
+    }
+    
+    if (payload) {
+      options.body = JSON.stringify(payload);
+    }
+    
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'HTTP ' + res.status);
+    }
+    return await res.json();
+  }
+
+  async function approveReport(id) {
+    if (!confirm('Одобрить этот отчёт? Он станет виден всем пользователям.')) return;
+    try {
+      await post('/api/moderate/reports/' + id + '/approve');
+      location.reload();
+    } catch(e) {
+      alert('Ошибка при одобрении: ' + e.message);
+    }
+  }
+
+  async function rejectReport(id) {
+    const reason = document.getElementById('rejectReason' + id).value.trim();
+    if (!reason) {
+      alert('Укажите причину отклонения!');
+      document.getElementById('rejectReason' + id).focus();
+      return;
+    }
+    if (!confirm('Отклонить этот отчёт? Автор увидит причину отклонения.')) return;
+    try {
+      await post('/api/moderate/reports/' + id + '/reject', { reason: reason });
+      location.reload();
+    } catch(e) {
+      alert('Ошибка при отклонении: ' + e.message);
+    }
+  }
+</script>
+{% endblock %}

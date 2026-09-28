@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Управление видами рыб — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">← Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Управление видами рыб</h2>
+
+    <!-- Форма создания / редактирования -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="fishFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Добавить вид рыбы</h3>
+        <form method="POST" id="fishForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="fishAction" value="create">
+            <input type="hidden" name="fish_id" id="fishId" value="">
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Название <span class="required">*</span></label>
+                    <input type="text" name="name" id="fishName" required 
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Латинское название</label>
+                    <input type="text" name="latin_name" id="fishLatin" 
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Темп. мин (°C)</label>
+                    <input type="number" name="optimal_temp_min" id="fishTempMin" step="0.1"
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Темп. макс (°C)</label>
+                    <input type="number" name="optimal_temp_max" id="fishTempMax" step="0.1"
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Сезонность</label>
+                    <input type="text" name="seasonality" id="fishSeason" 
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Изображение</label>
+                    <input type="file" name="image" id="fishImageFile" accept="image/*">
+                    <div id="currentFishImagePreview" style="margin-top:5px;"></div>
+                    <small style="color:var(--text-muted);">Рекомендуемый размер: 600x400px</small>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:8px;">
+                <label>Особенности</label>
+                <textarea name="features" id="fishFeatures" rows="2" placeholder="Особенности поведения..."
+                          style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div class="form-group" style="margin-top:8px;">
+                <label>Описание</label>
+                <textarea name="description" id="fishDesc" rows="3" placeholder="Подробное описание вида рыбы..."
+                          style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button type="submit" class="submit-btn" id="fishSubmitBtn" style="width:auto; padding:6px 16px;">Добавить</button>
+                <button type="button" class="submit-btn" id="fishCancelBtn" onclick="cancelFishEdit()" style="width:auto; padding:6px 16px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Панель поиска -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+                <input type="text" id="searchFish" placeholder="Поиск по названию рыбы..."
+                       style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            </div>
+            <button onclick="clearFishSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+        </div>
+        <div id="fishSearchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Таблица видов рыб -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все виды рыб (<span id="fishTotalCount">{{ fish_list|length }}</span>)</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary);">
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Название</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Латынь</th>
+                        <th style="padding:8px; text-align:center; color:var(--text-accent);">Темп. оптимум</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Сезонность</th>
+                        <th style="padding:8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="fishTableBody">
+                    {% for f in fish_list %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" id="fish-row-{{ f.id }}" data-fish-name="{{ f.name|lower }}">
+                        <td style="padding:8px; color:var(--text-primary);">{{ f.name }}</td>
+                        <td style="padding:8px; color:var(--text-muted); font-style:italic;">{{ f.latin_name }}</td>
+                        <td style="padding:8px; text-align:center; color:var(--text-muted);">{{ f.optimal_temp_min }}–{{ f.optimal_temp_max }}°C</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ f.seasonality[:40] }}{% if f.seasonality|length > 40 %}…{% endif %}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                <button onclick="editFish({{ f.id }}, '{{ f.name }}', '{{ f.latin_name }}', {{ f.optimal_temp_min }}, {{ f.optimal_temp_max }}, '{{ f.seasonality }}', `{{ f.features|replace('`', '\\`')|safe }}`, `{{ f.description|replace('`', '\\`')|safe }}`, '{{ f.image }}')"
+                                        class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px;">Редактировать</button>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить вид рыбы {{ f.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="fish_id" value="{{ f.id }}">
+                                    <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterFish() {
+        const searchTerm = document.getElementById('searchFish').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#fishTableBody tr');
+        const statsDiv = document.getElementById('fishSearchStats');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const name = row.getAttribute('data-fish-name') || '';
+            if (!searchTerm || name.includes(searchTerm)) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        const totalCount = rows.length;
+        if (searchTerm) {
+            statsDiv.innerHTML = `Найдено: ${visibleCount} из ${totalCount} видов рыб`;
+        } else {
+            statsDiv.innerHTML = '';
+        }
+        document.getElementById('fishTotalCount').textContent = visibleCount;
+    }
+    
+    function clearFishSearch() {
+        document.getElementById('searchFish').value = '';
+        filterFish();
+    }
+    
+    function editFish(id, name, latin, tempMin, tempMax, season, features, desc, image) {
+        document.getElementById('fishFormTitle').textContent = 'Редактировать вид рыбы';
+        document.getElementById('fishAction').value = 'edit';
+        document.getElementById('fishId').value = id;
+        document.getElementById('fishName').value = name;
+        document.getElementById('fishLatin').value = latin;
+        document.getElementById('fishTempMin').value = tempMin;
+        document.getElementById('fishTempMax').value = tempMax;
+        document.getElementById('fishSeason').value = season;
+        document.getElementById('fishFeatures').value = features;
+        document.getElementById('fishDesc').value = desc;
+
+        // Отображение текущего изображения
+        const previewContainer = document.getElementById('currentFishImagePreview');
+        if (image) {
+            previewContainer.innerHTML = `
+                <div style="margin-top:8px; padding:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:4px;">
+                    <img src="{{ url_for('static', filename='') }}${image}" style="max-height:80px; border-radius:4px;">
+                    <div style="margin-top:4px; font-size:11px; color:var(--text-muted);">Текущее изображение</div>
+                </div>
+            `;
+        } else {
+            previewContainer.innerHTML = '';
+        }
+
+        document.getElementById('fishSubmitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('fishCancelBtn').style.display = 'block';
+        document.getElementById('fishFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function cancelFishEdit() {
+        document.getElementById('fishForm').reset();
+        document.getElementById('fishFormTitle').textContent = 'Добавить вид рыбы';
+        document.getElementById('fishAction').value = 'create';
+        document.getElementById('fishId').value = '';
+        document.getElementById('fishSubmitBtn').innerHTML = 'Добавить';
+        document.getElementById('fishCancelBtn').style.display = 'none';
+    }
+    
+    document.getElementById('searchFish')?.addEventListener('input', filterFish);
+    document.getElementById('searchFish')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') filterFish();
+    });
+</script>
+{% endblock %}

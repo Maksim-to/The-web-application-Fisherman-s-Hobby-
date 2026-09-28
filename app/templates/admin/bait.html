@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Управление наживками — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">← Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Управление наживками</h2>
+
+    <!-- Форма создания / редактирования -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="baitFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Добавить наживку</h3>
+        <form method="POST" id="baitForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="baitAction" value="create">
+            <input type="hidden" name="bait_id" id="baitId" value="">
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Название <span class="required">*</span></label>
+                    <input type="text" name="name" id="baitName" required 
+                           style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Категория</label>
+                    <select name="category" id="baitCategory" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <option value="">— Выберите категорию —</option>
+                        <option value="животная">Животная</option>
+                        <option value="растительная">Растительная</option>
+                        <option value="искусственная">Искусственная</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Изображение</label>
+                    <input type="file" name="image" id="baitImageFile" accept="image/*">
+                    <div id="currentBaitImagePreview" style="margin-top:5px;"></div>
+                    <small style="color:var(--text-muted);">Рекомендуемый размер: 600x400px</small>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:8px;">
+                <label>Описание</label>
+                <textarea name="description" id="baitDesc" rows="3" placeholder="Подробное описание наживки..."
+                          style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button type="submit" class="submit-btn" id="baitSubmitBtn" style="width:auto; padding:6px 16px;">Добавить</button>
+                <button type="button" class="submit-btn" id="baitCancelBtn" onclick="cancelBaitEdit()" style="width:auto; padding:6px 16px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Панель поиска -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+                <input type="text" id="searchBait" placeholder="Поиск по названию наживки..."
+                       style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            </div>
+            <button onclick="clearBaitSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+        </div>
+        <div id="baitSearchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Таблица наживок -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все наживки (<span id="baitTotalCount">{{ baits|length }}</span>)</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary);">
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Название</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Категория</th>
+                        <th style="padding:8px; text-align:left; color:var(--text-accent);">Описание</th>
+                        <th style="padding:8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="baitTableBody">
+                    {% for b in baits %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" id="bait-row-{{ b.id }}" data-bait-name="{{ b.name|lower }}">
+                        <td style="padding:8px; color:var(--text-primary); font-weight:600;">{{ b.name }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ b.category or '—' }}</td>
+                        <td style="padding:8px; color:var(--text-muted); max-width:300px;">
+                            {{ b.description[:60] }}{% if b.description and b.description|length > 60 %}...{% endif %}
+                        </td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                <button onclick="editBait({{ b.id }}, '{{ b.name }}', '{{ b.category }}', `{{ b.description|replace('`', '\\`')|safe }}`, '{{ b.image }}')" 
+                                        class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px;">Редактировать</button>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить наживку {{ b.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="bait_id" value="{{ b.id }}">
+                                    <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not baits %}
+            <div style="color:var(--text-muted); padding:20px; text-align:center;">Нет наживок в базе данных.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function filterBait() {
+        const searchTerm = document.getElementById('searchBait').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#baitTableBody tr');
+        const statsDiv = document.getElementById('baitSearchStats');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const name = row.getAttribute('data-bait-name') || '';
+            if (!searchTerm || name.includes(searchTerm)) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        const totalCount = rows.length;
+        if (searchTerm) {
+            statsDiv.innerHTML = `Найдено: ${visibleCount} из ${totalCount} наживок`;
+        } else {
+            statsDiv.innerHTML = '';
+        }
+        document.getElementById('baitTotalCount').textContent = visibleCount;
+    }
+    
+    function clearBaitSearch() {
+        document.getElementById('searchBait').value = '';
+        filterBait();
+    }
+    
+    function editBait(id, name, category, desc, image) {
+        document.getElementById('baitFormTitle').textContent = 'Редактировать наживку';
+        document.getElementById('baitAction').value = 'edit';
+        document.getElementById('baitId').value = id;
+        document.getElementById('baitName').value = name;
+        document.getElementById('baitCategory').value = category;
+        document.getElementById('baitDesc').value = desc;
+
+        // Отображение текущего изображения
+        const previewContainer = document.getElementById('currentBaitImagePreview');
+        if (image) {
+            previewContainer.innerHTML = `
+                <div style="margin-top:8px; padding:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:4px;">
+                    <img src="{{ url_for('static', filename='') }}${image}" style="max-height:80px; border-radius:4px;">
+                    <div style="margin-top:4px; font-size:11px; color:var(--text-muted);">Текущее изображение</div>
+                </div>
+            `;
+        } else {
+            previewContainer.innerHTML = '';
+        }
+
+        document.getElementById('baitSubmitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('baitCancelBtn').style.display = 'block';
+        document.getElementById('baitFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function cancelBaitEdit() {
+        document.getElementById('baitForm').reset();
+        document.getElementById('baitFormTitle').textContent = 'Добавить наживку';
+        document.getElementById('baitAction').value = 'create';
+        document.getElementById('baitId').value = '';
+        document.getElementById('baitSubmitBtn').innerHTML = 'Добавить';
+        document.getElementById('baitCancelBtn').style.display = 'none';
+    }
+    
+    document.getElementById('searchBait')?.addEventListener('input', filterBait);
+    document.getElementById('searchBait')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') filterBait();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+{% block title %}Управление правилами — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1400px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">← Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Правила рыболовства</h2>
+
+    <!-- Единая форма -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="ruleFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Добавить правило</h3>
+        <form method="POST" id="ruleForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="ruleAction" value="create">
+            <input type="hidden" name="rule_id" id="ruleId" value="">
+
+            <!-- Тип правила -->
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Тип правила <span class="required">*</span></label>
+                <select name="rule_type" id="ruleType" required style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                    <option value="general">Общее правило (FishingRule)</option>
+                    <option value="regional">Региональное правило (по видам рыб)</option>
+                    <option value="seasonal">Сезонный запрет</option>
+                    <option value="restricted">Запретная зона</option>
+                    <option value="daily">Суточный лимит</option>
+                </select>
+            </div>
+
+            <!-- Общие поля (видны всегда) -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:12px;">
+                <!-- Регион (автодополнение) -->
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Регион <span class="required">*</span></label>
+                    <div style="position: relative;">
+                        <input type="text" id="regionSearch" placeholder="Начните вводить название региона..." autocomplete="off"
+                               style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                        <div id="regionSuggestions" class="suggestions-dropdown"></div>
+                    </div>
+                    <input type="hidden" name="region_id" id="regionId">
+                </div>
+
+                <!-- Вид рыбы (для regional и daily) -->
+                <div class="form-group" style="margin-bottom:0;" id="fishGroup">
+                    <label>Вид рыбы <span class="required">*</span></label>
+                    <div style="position: relative;">
+                        <input type="text" id="fishSearch" placeholder="Начните вводить название рыбы..." autocomplete="off"
+                               style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                        <div id="fishSuggestions" class="suggestions-dropdown"></div>
+                    </div>
+                    <input type="hidden" name="fish_id" id="fishId">
+                </div>
+
+                <!-- Название зоны (для restricted) -->
+                <div class="form-group" style="margin-bottom:0;" id="areaNameGroup">
+                    <label>Название зоны <span class="required">*</span></label>
+                    <input type="text" name="name" id="areaName" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+
+                <!-- Тип зоны (для restricted) -->
+                <div class="form-group" style="margin-bottom:0;" id="areaTypeGroup">
+                    <label>Тип зоны</label>
+                    <input type="text" name="area_type" id="areaType" placeholder="Нерестилище, заповедник..." style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+
+                <!-- Общее правило (для daily) -->
+                <div class="form-group" style="margin-bottom:0;" id="generalRuleGroup">
+                    <label>Общее правило <span class="required">*</span></label>
+                    <select name="rule_id" id="generalRuleSelect" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                        <option value="">— Выберите —</option>
+                        {% for rule in general_rules %}
+                            <option value="{{ rule.id }}">{{ rule.region.name if rule.region else 'Без региона' }} — {{ rule.source if rule.source else 'Без источника' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Даты и лимиты -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-top:12px;">
+                <div class="form-group" style="margin-bottom:0;" id="banStartGroup">
+                    <label>Начало запрета</label>
+                    <input type="date" name="ban_start" id="banStart" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;" id="banEndGroup">
+                    <label>Конец запрета</label>
+                    <input type="date" name="ban_end" id="banEnd" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Мин. размер (см)</label>
+                    <input type="number" name="min_size_cm" id="minSize" step="1" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Лимит (кг/сут)</label>
+                    <input type="number" name="daily_limit_kg" id="dailyLimitKg" step="0.1" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Лимит (шт/сут)</label>
+                    <input type="number" name="daily_limit_pcs" id="dailyLimitPcs" step="1" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;" id="sourceGroup">
+                    <label>Источник</label>
+                    <input type="text" name="source" id="source" placeholder="Приказ Минсельхоза № ..." style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                </div>
+            </div>
+
+            <!-- Снасти (разрешённые и запрещённые) -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+                <div class="form-group">
+                    <label>Разрешённые снасти</label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="allowedGearDisplay" placeholder="Выберите снасти" readonly style="flex:1; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                        <button type="button" onclick="openGearModal('allowed')" class="submit-btn" style="width:auto; padding:6px 12px;">Выбрать</button>
+                    </div>
+                    <input type="hidden" name="allowed_gear" id="allowedGear">
+                </div>
+                <div class="form-group">
+                    <label>Запрещённые снасти</label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="prohibitedGearDisplay" placeholder="Выберите снасти" readonly style="flex:1; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                        <button type="button" onclick="openGearModal('prohibited')" class="submit-btn" style="width:auto; padding:6px 12px;">Выбрать</button>
+                    </div>
+                    <input type="hidden" name="prohibited_gear" id="prohibitedGear">
+                </div>
+            </div>
+
+            <!-- GeoJSON и описание -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+                <div class="form-group" id="geometryGroup">
+                    <label>GeoJSON (опционально)</label>
+                    <textarea name="geometry_geojson" id="geometry" rows="2" placeholder='{"type": "Polygon", "coordinates": [...]}' style="width:100%; padding:6px; font-family: monospace; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;"></textarea>
+                </div>
+                <div class="form-group" id="descriptionGroup">
+                    <label>Описание</label>
+                    <textarea name="description" id="description" rows="2" placeholder="Описание сезонного запрета или зоны" style="width:100%; padding:6px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;"></textarea>
+                </div>
+            </div>
+
+            <!-- Чекбокс полного запрета (для региональных) -->
+            <div style="margin-top:12px;" id="isProhibitedGroup">
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="is_prohibited" id="isProhibited" style="width:auto;">
+                    <span>Полный запрет на вылов</span>
+                </label>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button type="submit" class="submit-btn" id="ruleSubmitBtn" style="width:auto; padding:6px 16px;">Добавить правило</button>
+                <button type="button" class="submit-btn" id="ruleCancelBtn" onclick="cancelRuleEdit()" style="width:auto; padding:6px 16px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Панель поиска и фильтрации -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="flex:2; min-width:200px;">
+                <input type="text" id="searchRule" placeholder="Поиск по региону, виду рыбы, названию зоны..." style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+            </div>
+            <div style="flex:1; min-width:150px;">
+                <select id="filterType" style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+                    <option value="">Все типы правил</option>
+                    <option value="general">Общие правила</option>
+                    <option value="regional">Региональные правила</option>
+                    <option value="seasonal">Сезонные запреты</option>
+                    <option value="restricted">Запретные зоны</option>
+                    <option value="daily">Суточные лимиты</option>
+                </select>
+            </div>
+            <button onclick="clearRuleSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+        </div>
+        <div id="ruleSearchStats" style="margin-top:8px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Единая таблица всех правил -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все правила (<span id="totalRulesCount">{{ general_rules|length + regional_rules|length + seasonal_bans|length + restricted_areas|length + daily_limits|length }}</span>)</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary);">
+                        <th style="padding:8px;">Тип</th>
+                        <th style="padding:8px;">Регион</th>
+                        <th style="padding:8px;">Вид рыбы / Название</th>
+                        <th style="padding:8px;">Период запрета</th>
+                        <th style="padding:8px;">Ограничения</th>
+                        <th style="padding:8px; text-align:center;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="rulesTableBody">
+                    {% for rule in general_rules %}
+                    <tr class="rule-row" data-type="general" data-search-text="{{ rule.region.name.lower() if rule.region else '' }}" data-id="{{ rule.id }}"
+                        data-region-id="{{ rule.region_id }}" data-ban-start="{{ rule.ban_start.isoformat() if rule.ban_start else '' }}" data-ban-end="{{ rule.ban_end.isoformat() if rule.ban_end else '' }}"
+                        data-daily-limit-kg="{{ rule.daily_limit_kg or '' }}" data-allowed-gear="{{ rule.allowed_gear|default('') }}" data-prohibited-gear="{{ rule.prohibited_gear|default('') }}"
+                        data-source="{{ rule.source|default('') }}">
+                        <td style="padding:8px;"><span class="badge" style="background:var(--bg-tag); padding:2px 8px; border-radius:4px;">Общее</span></td>
+                        <td style="padding:8px;">{{ rule.region.name if rule.region else '—' }}</td>
+                        <td style="padding:8px;">—</td>
+                        <td style="padding:8px;">{% if rule.ban_start and rule.ban_end %}{{ rule.ban_start.strftime('%d.%m.%Y') }} — {{ rule.ban_end.strftime('%d.%m.%Y') }}{% else %}—{% endif %}</td>
+                        <td style="padding:8px;">{% if rule.daily_limit_kg %}Лимит: {{ rule.daily_limit_kg }} кг{% endif %}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="editRule(this)" class="submit-btn" style="padding:4px 8px; font-size:11px;">Редактировать</button>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить правило?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <input type="hidden" name="rule_type" value="general">
+                                <button class="submit-btn" style="padding:4px 8px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger);color:var(--text-danger);">Удалить</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for rule in regional_rules %}
+                    <tr class="rule-row" data-type="regional" data-search-text="{{ rule.region.name.lower() if rule.region else '' }} {{ rule.fish.name.lower() if rule.fish else '' }}" data-id="{{ rule.id }}"
+                        data-region-id="{{ rule.region_id }}" data-fish-id="{{ rule.fish_id }}" data-ban-start="{{ rule.ban_start.isoformat() if rule.ban_start else '' }}" data-ban-end="{{ rule.ban_end.isoformat() if rule.ban_end else '' }}"
+                        data-min-size="{{ rule.min_size_cm or '' }}" data-daily-limit-kg="{{ rule.daily_limit_kg or '' }}" data-daily-limit-pcs="{{ rule.daily_limit_pcs or '' }}"
+                        data-allowed-gear="{{ rule.allowed_gear|default('') }}" data-prohibited-gear="{{ rule.prohibited_gear|default('') }}" data-is-prohibited="{{ rule.is_prohibited|lower }}">
+                        <td style="padding:8px;"><span class="badge" style="background:var(--bg-tag); padding:2px 8px; border-radius:4px;">Региональное</span></td>
+                        <td style="padding:8px;">{{ rule.region.name if rule.region else '—' }}</td>
+                        <td style="padding:8px;">{{ rule.fish.name if rule.fish else '—' }}</td>
+                        <td style="padding:8px;">{% if rule.ban_start and rule.ban_end %}{{ rule.ban_start.strftime('%d.%m.%Y') }} — {{ rule.ban_end.strftime('%d.%m.%Y') }}{% else %}—{% endif %}</td>
+                        <td style="padding:8px;">
+                            {% if rule.min_size_cm %}Мин.размер: {{ rule.min_size_cm }} см<br>{% endif %}
+                            {% if rule.daily_limit_kg %}Лимит: {{ rule.daily_limit_kg }} кг{% endif %}
+                            {% if rule.is_prohibited %}<span style="color:var(--text-danger);">Полный запрет</span>{% endif %}
+                        </td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="editRule(this)" class="submit-btn" style="padding:4px 8px; font-size:11px;">Редактировать</button>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить правило?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <input type="hidden" name="rule_type" value="regional">
+                                <button class="submit-btn" style="padding:4px 8px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger);color:var(--text-danger);">Удалить</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for rule in seasonal_bans %}
+                    <tr class="rule-row" data-type="seasonal" data-search-text="{{ rule.region.name.lower() if rule.region else '' }} {{ rule.description.lower() if rule.description else '' }}" data-id="{{ rule.id }}"
+                        data-region-id="{{ rule.region_id }}" data-ban-start="{{ rule.ban_start.isoformat() }}" data-ban-end="{{ rule.ban_end.isoformat() }}" data-description="{{ rule.description|default('') }}">
+                        <td style="padding:8px;"><span class="badge" style="background:var(--bg-tag); padding:2px 8px; border-radius:4px;">Сезонный запрет</span></td>
+                        <td style="padding:8px;">{{ rule.region.name if rule.region else '—' }}</td>
+                        <td style="padding:8px;">—</td>
+                        <td style="padding:8px;">{{ rule.ban_start.strftime('%d.%m.%Y') }} — {{ rule.ban_end.strftime('%d.%m.%Y') }}</td>
+                        <td style="padding:8px;">{{ rule.description[:50] if rule.description else '—' }}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="editRule(this)" class="submit-btn" style="padding:4px 8px; font-size:11px;">Редактировать</button>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить запрет?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <input type="hidden" name="rule_type" value="seasonal">
+                                <button class="submit-btn" style="padding:4px 8px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger);color:var(--text-danger);">Удалить</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for rule in restricted_areas %}
+                    <tr class="rule-row" data-type="restricted" data-search-text="{{ rule.name.lower() }} {{ rule.region.name.lower() if rule.region else '' }}" data-id="{{ rule.id }}"
+                        data-name="{{ rule.name }}" data-area-type="{{ rule.area_type|default('') }}" data-region-id="{{ rule.region_id or '' }}"
+                        data-geometry="{{ rule.geometry_geojson|default('') }}" data-restriction-start="{{ rule.restriction_start.isoformat() }}" data-restriction-end="{{ rule.restriction_end.isoformat() }}">
+                        <td style="padding:8px;"><span class="badge" style="background:var(--bg-tag); padding:2px 8px; border-radius:4px;">Запретная зона</span></td>
+                        <td style="padding:8px;">{{ rule.region.name if rule.region else '—' }}</td>
+                        <td style="padding:8px;">{{ rule.name }}</td>
+                        <td style="padding:8px;">{{ rule.restriction_start.strftime('%d.%m.%Y') }} — {{ rule.restriction_end.strftime('%d.%m.%Y') }}</td>
+                        <td style="padding:8px;">{{ rule.area_type or '—' }}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="editRule(this)" class="submit-btn" style="padding:4px 8px; font-size:11px;">Редактировать</button>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить зону?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <input type="hidden" name="rule_type" value="restricted">
+                                <button class="submit-btn" style="padding:4px 8px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger);color:var(--text-danger);">Удалить</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for rule in daily_limits %}
+                    <tr class="rule-row" data-type="daily" data-search-text="{{ rule.rule.region.name.lower() if rule.rule and rule.rule.region else '' }} {{ rule.fish.name.lower() if rule.fish else '' }}" data-id="{{ rule.id }}"
+                        data-rule-id="{{ rule.rule_id }}" data-fish-id="{{ rule.fish_id }}" data-limit-kg="{{ rule.limit_kg or '' }}" data-limit-pcs="{{ rule.limit_pcs or '' }}"
+                        data-min-size="{{ rule.min_size_cm or '' }}" data-is-prohibited="{{ rule.is_prohibited|lower }}">
+                        <td style="padding:8px;"><span class="badge" style="background:var(--bg-tag); padding:2px 8px; border-radius:4px;">Суточный лимит</span></td>
+                        <td style="padding:8px;">{{ rule.rule.region.name if rule.rule and rule.rule.region else '—' }}</td>
+                        <td style="padding:8px;">{{ rule.fish.name if rule.fish else '—' }}</td>
+                        <td style="padding:8px;">—</td>
+                        <td style="padding:8px;">{% if rule.limit_kg %}{{ rule.limit_kg }} кг{% endif %}{% if rule.limit_pcs %} / {{ rule.limit_pcs }} шт{% endif %}{% if rule.min_size_cm %} / мин. {{ rule.min_size_cm }} см{% endif %}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="editRule(this)" class="submit-btn" style="padding:4px 8px; font-size:11px;">Редактировать</button>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить лимит?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <input type="hidden" name="rule_type" value="daily_limit">
+                                <button class="submit-btn" style="padding:4px 8px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger);color:var(--text-danger);">Удалить</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для выбора снастей -->
+<div id="gearModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Выберите снасти</h3>
+            <button onclick="closeGearModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding:16px;">
+            <input type="text" id="gearModalSearch" placeholder="Поиск снасти..." style="width:100%; padding:8px; margin-bottom:12px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:4px;">
+            <div id="gearModalList" style="display:flex; flex-wrap:wrap; gap:8px; max-height:300px; overflow-y:auto;"></div>
+            <div style="margin-top:16px; text-align:right;">
+                <button onclick="closeGearModal()" class="submit-btn" style="width:auto; padding:6px 16px;">Готово</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Данные для автодополнения
+    let allRegions = [];
+    let allFish = [];
+    let allGears = [];
+
+    // Выбранные снасти
+    let selectedAllowedGears = [];
+    let selectedProhibitedGears = [];
+
+    // Текущий тип модального окна
+    let currentGearType = 'allowed';
+
+    // Загрузка данных с отладочным выводом
+    async function loadRegions() {
+        try {
+            const res = await fetch('/api/regions/all');
+            const data = await res.json();
+            allRegions = data.regions || [];
+            console.log('Regions loaded:', allRegions.length);
+        } catch(e) { console.error('Failed to load regions', e); }
+    }
+    async function loadFish() {
+        try {
+            const res = await fetch('/api/fish/all');
+            const data = await res.json();
+            allFish = data.fish || [];
+            console.log('Fish loaded:', allFish.length);
+        } catch(e) { console.error('Failed to load fish', e); }
+    }
+    async function loadGears() {
+        try {
+            const res = await fetch('/api/gears/all');
+            const data = await res.json();
+            allGears = data.gears || [];
+            console.log('Gears loaded:', allGears.length);
+        } catch(e) { console.error('Failed to load gears', e); }
+    }
+
+    // Подсказки для региона
+    function showRegionSuggestions(query) {
+        const div = document.getElementById('regionSuggestions');
+        if (!div) {
+            console.warn('regionSuggestions element not found');
+            return;
+        }
+        if (!query.trim()) {
+            div.style.display = 'none';
+            return;
+        }
+        const filtered = allRegions.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+        if (!filtered.length) {
+            div.style.display = 'none';
+            return;
+        }
+        div.innerHTML = filtered.map(r => `<div class="suggestion-item" data-id="${r.id}" data-name="${r.name.replace(/'/g, "\\'")}">${r.name}</div>`).join('');
+        div.style.display = 'block';
+
+        // Обработчики для каждого элемента списка
+        document.querySelectorAll('#regionSuggestions .suggestion-item').forEach(el => {
+            el.onclick = () => {
+                document.getElementById('regionSearch').value = el.dataset.name;
+                document.getElementById('regionId').value = el.dataset.id;
+                div.style.display = 'none';
+            };
+        });
+    }
+
+    function showFishSuggestions(query) {
+        const div = document.getElementById('fishSuggestions');
+        if (!div) {
+            console.warn('fishSuggestions element not found');
+            return;
+        }
+        if (!query.trim()) {
+            div.style.display = 'none';
+            return;
+        }
+        const filtered = allFish.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+        if (!filtered.length) {
+            div.style.display = 'none';
+            return;
+        }
+        div.innerHTML = filtered.map(f => `<div class="suggestion-item" data-id="${f.id}" data-name="${f.name.replace(/'/g, "\\'")}">${f.name}</div>`).join('');
+        div.style.display = 'block';
+
+        document.querySelectorAll('#fishSuggestions .suggestion-item').forEach(el => {
+            el.onclick = () => {
+                document.getElementById('fishSearch').value = el.dataset.name;
+                document.getElementById('fishId').value = el.dataset.id;
+                div.style.display = 'none';
+            };
+        });
+    }
+
+    // Модальное окно для снастей
+    function openGearModal(type) {
+        currentGearType = type;
+        const modal = document.getElementById('gearModal');
+        const listContainer = document.getElementById('gearModalList');
+        const searchInput = document.getElementById('gearModalSearch');
+        const currentSelected = type === 'allowed' ? selectedAllowedGears : selectedProhibitedGears;
+        
+        function renderList(filter = '') {
+            const filtered = allGears.filter(g => g.toLowerCase().includes(filter.toLowerCase()));
+            listContainer.innerHTML = filtered.map(g => `
+                <div class="gear-item ${currentSelected.includes(g) ? 'selected' : ''}" data-gear="${g.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:${currentSelected.includes(g) ? 'var(--btn-bg)' : 'var(--bg-input)'}; color:${currentSelected.includes(g) ? 'var(--btn-text)' : 'var(--text-primary)'}; border:1px solid var(--border-tag); border-radius:20px; font-size:13px; cursor:pointer; margin:4px;">
+                    ${g}
+                </div>
+            `).join('');
+            document.querySelectorAll('.gear-item').forEach(el => {
+                el.onclick = () => {
+                    const gear = el.dataset.gear;
+                    if (currentSelected.includes(gear)) {
+                        const idx = currentSelected.indexOf(gear);
+                        if (type === 'allowed') selectedAllowedGears.splice(idx, 1);
+                        else selectedProhibitedGears.splice(idx, 1);
+                    } else {
+                        if (type === 'allowed') selectedAllowedGears.push(gear);
+                        else selectedProhibitedGears.push(gear);
+                    }
+                    renderList(searchInput.value);
+                    updateGearFields();
+                };
+            });
+        }
+        searchInput.value = '';
+        renderList('');
+        searchInput.oninput = (e) => renderList(e.target.value);
+        modal.style.display = 'flex';
+    }
+    function closeGearModal() {
+        document.getElementById('gearModal').style.display = 'none';
+    }
+    function updateGearFields() {
+        document.getElementById('allowedGearDisplay').value = selectedAllowedGears.join(', ');
+        document.getElementById('allowedGear').value = JSON.stringify(selectedAllowedGears);
+        document.getElementById('prohibitedGearDisplay').value = selectedProhibitedGears.join(', ');
+        document.getElementById('prohibitedGear').value = JSON.stringify(selectedProhibitedGears);
+    }
+
+    // Управление видимостью полей в зависимости от типа правила
+    function updateFieldsVisibility(ruleType) {
+        const fishGroup = document.getElementById('fishGroup');
+        const areaNameGroup = document.getElementById('areaNameGroup');
+        const areaTypeGroup = document.getElementById('areaTypeGroup');
+        const generalRuleGroup = document.getElementById('generalRuleGroup');
+        const sourceGroup = document.getElementById('sourceGroup');
+        const geometryGroup = document.getElementById('geometryGroup');
+        const descriptionGroup = document.getElementById('descriptionGroup');
+        const isProhibitedGroup = document.getElementById('isProhibitedGroup');
+        const banStartGroup = document.getElementById('banStartGroup');
+        const banEndGroup = document.getElementById('banEndGroup');
+
+        // Скрыть все специфические группы
+        const groups = [fishGroup, areaNameGroup, areaTypeGroup, generalRuleGroup, sourceGroup, geometryGroup, descriptionGroup, isProhibitedGroup];
+        groups.forEach(g => { if (g) g.style.display = 'none'; });
+        // Показать общие для всех
+        if (banStartGroup) banStartGroup.style.display = 'block';
+        if (banEndGroup) banEndGroup.style.display = 'block';
+
+        // Установка звёздочек обязательности (упрощённо, просто показываем их)
+        const requiredStars = document.querySelectorAll('.required');
+        requiredStars.forEach(star => star.style.display = 'none');
+        // Показываем нужные
+        if (ruleType === 'general') {
+            sourceGroup.style.display = 'block';
+            // здесь можно добавить звёздочку для региона, но регион обязателен всегда
+        } else if (ruleType === 'regional') {
+            fishGroup.style.display = 'block';
+            isProhibitedGroup.style.display = 'block';
+        } else if (ruleType === 'seasonal') {
+            descriptionGroup.style.display = 'block';
+        } else if (ruleType === 'restricted') {
+            areaNameGroup.style.display = 'block';
+            areaTypeGroup.style.display = 'block';
+            geometryGroup.style.display = 'block';
+        } else if (ruleType === 'daily') {
+            fishGroup.style.display = 'block';
+            generalRuleGroup.style.display = 'block';
+            isProhibitedGroup.style.display = 'block';
+        }
+    }
+
+    // Редактирование правила (заполнение формы из data-атрибутов строки)
+    function editRule(btn) {
+        const row = btn.closest('.rule-row');
+        const type = row.getAttribute('data-type');
+        const id = row.getAttribute('data-id');
+
+        // Установить тип в селекторе
+        const typeSelect = document.getElementById('ruleType');
+        typeSelect.value = type;
+        updateFieldsVisibility(type);
+
+        // Заполнить общие поля
+        document.getElementById('ruleAction').value = 'edit';
+        document.getElementById('ruleId').value = id;
+        document.getElementById('ruleSubmitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('ruleCancelBtn').style.display = 'block';
+
+        // Регион
+        const regionId = row.getAttribute('data-region-id');
+        if (regionId) {
+            const region = allRegions.find(r => r.id == regionId);
+            if (region) {
+                document.getElementById('regionSearch').value = region.name;
+                document.getElementById('regionId').value = region.id;
+            }
+        } else {
+            document.getElementById('regionSearch').value = '';
+            document.getElementById('regionId').value = '';
+        }
+
+        // Общие поля
+        document.getElementById('banStart').value = row.getAttribute('data-ban-start') || '';
+        document.getElementById('banEnd').value = row.getAttribute('data-ban-end') || '';
+        document.getElementById('minSize').value = row.getAttribute('data-min-size') || '';
+        document.getElementById('dailyLimitKg').value = row.getAttribute('data-daily-limit-kg') || '';
+        document.getElementById('dailyLimitPcs').value = row.getAttribute('data-daily-limit-pcs') || '';
+
+        // Снасти
+        const allowedGear = row.getAttribute('data-allowed-gear') || '';
+        const prohibitedGear = row.getAttribute('data-prohibited-gear') || '';
+        try {
+            selectedAllowedGears = allowedGear ? JSON.parse(allowedGear) : (allowedGear ? [allowedGear] : []);
+            selectedProhibitedGears = prohibitedGear ? JSON.parse(prohibitedGear) : (prohibitedGear ? [prohibitedGear] : []);
+        } catch(e) {
+            selectedAllowedGears = allowedGear ? [allowedGear] : [];
+            selectedProhibitedGears = prohibitedGear ? [prohibitedGear] : [];
+        }
+        updateGearFields();
+
+        // Поля в зависимости от типа
+        if (type === 'general') {
+            document.getElementById('source').value = row.getAttribute('data-source') || '';
+        } else if (type === 'regional') {
+            const fishId = row.getAttribute('data-fish-id');
+            if (fishId) {
+                const fish = allFish.find(f => f.id == fishId);
+                if (fish) {
+                    document.getElementById('fishSearch').value = fish.name;
+                    document.getElementById('fishId').value = fish.id;
+                }
+            }
+            document.getElementById('isProhibited').checked = row.getAttribute('data-is-prohibited') === 'true';
+        } else if (type === 'seasonal') {
+            document.getElementById('description').value = row.getAttribute('data-description') || '';
+        } else if (type === 'restricted') {
+            document.getElementById('areaName').value = row.getAttribute('data-name') || '';
+            document.getElementById('areaType').value = row.getAttribute('data-area-type') || '';
+            document.getElementById('geometry').value = row.getAttribute('data-geometry') || '';
+        } else if (type === 'daily') {
+            const ruleId = row.getAttribute('data-rule-id');
+            if (ruleId) document.getElementById('generalRuleSelect').value = ruleId;
+            const fishId = row.getAttribute('data-fish-id');
+            if (fishId) {
+                const fish = allFish.find(f => f.id == fishId);
+                if (fish) {
+                    document.getElementById('fishSearch').value = fish.name;
+                    document.getElementById('fishId').value = fish.id;
+                }
+            }
+            document.getElementById('isProhibited').checked = row.getAttribute('data-is-prohibited') === 'true';
+        }
+
+        document.getElementById('ruleFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function cancelRuleEdit() {
+        document.getElementById('ruleForm').reset();
+        document.getElementById('ruleAction').value = 'create';
+        document.getElementById('ruleId').value = '';
+        document.getElementById('ruleSubmitBtn').innerHTML = 'Добавить правило';
+        document.getElementById('ruleCancelBtn').style.display = 'none';
+        selectedAllowedGears = [];
+        selectedProhibitedGears = [];
+        updateGearFields();
+        // Сбросить автодополнение
+        document.getElementById('regionSearch').value = '';
+        document.getElementById('regionId').value = '';
+        document.getElementById('fishSearch').value = '';
+        document.getElementById('fishId').value = '';
+        // Установить видимость полей по текущему типу
+        const currentType = document.getElementById('ruleType').value;
+        updateFieldsVisibility(currentType);
+    }
+
+    // Фильтрация таблицы
+    function filterTable() {
+        const search = document.getElementById('searchRule').value.toLowerCase();
+        const filterType = document.getElementById('filterType').value;
+        const rows = document.querySelectorAll('#rulesTableBody .rule-row');
+        let visible = 0;
+        rows.forEach(row => {
+            const type = row.getAttribute('data-type');
+            const text = row.getAttribute('data-search-text') || '';
+            let matches = true;
+            if (filterType && type !== filterType) matches = false;
+            if (search && !text.includes(search)) matches = false;
+            if (matches) {
+                row.style.display = '';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        document.getElementById('totalRulesCount').textContent = visible;
+        document.getElementById('ruleSearchStats').innerHTML = (search || filterType) ? `Найдено: ${visible} правил` : '';
+    }
+
+    function clearRuleSearch() {
+        document.getElementById('searchRule').value = '';
+        document.getElementById('filterType').value = '';
+        filterTable();
+    }
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRegions();
+        await loadFish();
+        await loadGears();
+        updateFieldsVisibility('general');
+        
+        const ruleTypeSelect = document.getElementById('ruleType');
+        ruleTypeSelect.addEventListener('change', (e) => updateFieldsVisibility(e.target.value));
+        
+        const regionSearch = document.getElementById('regionSearch');
+        regionSearch.addEventListener('input', e => showRegionSuggestions(e.target.value));
+        // Показывать подсказки также при фокусе (если поле не пустое)
+        regionSearch.addEventListener('focus', () => {
+            if (regionSearch.value.trim()) showRegionSuggestions(regionSearch.value);
+        });
+        
+        const fishSearch = document.getElementById('fishSearch');
+        fishSearch.addEventListener('input', e => showFishSuggestions(e.target.value));
+        fishSearch.addEventListener('focus', () => {
+            if (fishSearch.value.trim()) showFishSuggestions(fishSearch.value);
+        });
+        
+        document.getElementById('searchRule').addEventListener('input', filterTable);
+        document.getElementById('filterType').addEventListener('change', filterTable);
+        
+        // Закрытие подсказок при клике вне
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#regionSearch') && !e.target.closest('#regionSuggestions')) {
+                document.getElementById('regionSuggestions').style.display = 'none';
+            }
+            if (!e.target.closest('#fishSearch') && !e.target.closest('#fishSuggestions')) {
+                document.getElementById('fishSuggestions').style.display = 'none';
+            }
+        });
+    });
+</script>
+
+<style>
+    .suggestions-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-input);
+        border-top: none;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 100;
+        display: none;
+        border-radius: 0 0 4px 4px;
+    }
+    .suggestion-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-tag);
+    }
+    .suggestion-item:hover {
+        background: var(--bg-hover);
+    }
+    .gear-item.selected {
+        background: var(--btn-bg) !important;
+        color: var(--btn-text) !important;
+    }
+    .required {
+        color: var(--text-danger);
+    }
+</style>
+{% endblock %}

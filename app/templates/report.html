@@ -1,0 +1,1091 @@
+{% extends "base.html" %}
+{% block title %}Новый отчёт — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="form-container" style="max-width: 740px; margin: 30px auto;">
+    <h2>НОВЫЙ ОТЧЁТ О РЫБАЛКЕ</h2>
+    <p class="subtitle">Заполните форму для публикации отчёта в сообществе</p>
+
+    <form method="POST" id="reportForm" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+            <label for="waterbody_name"><span class="required">*</span> Водоём</label>
+            <input type="text" id="waterbody_name" name="waterbody_name" list="waterbodies-list"
+                   placeholder="Начните вводить название водоёма..." autocomplete="off" required
+                   value="{{ preselected_waterbody }}" class="validate-on-input">
+            <datalist id="waterbodies-list">
+                {% for name in waterbody_names %}
+                    <option value="{{ name }}">
+                {% endfor %}
+            </datalist>
+            <div id="waterbody-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="date"><span class="required">*</span> Дата рыбалки</label>
+                <select id="date" name="date" required class="form-control" style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                    {% set today = datetime.now().date() %}
+                    {% for i in range(0, 8) %}
+                        {% set d = today - timedelta(days=i) %}
+                        <option value="{{ d.isoformat() }}">
+                            {{ d.strftime('%d.%m.%Y') }}
+                            {% if i == 0 %} (сегодня)
+                            {% elif i == 1 %} (вчера)
+                            {% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="time_of_day">Время суток</label>
+                <select id="time_of_day" name="time_of_day" class="form-control" style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                    <option value="morning">Утро (06:00)</option>
+                    <option value="day" selected>День (13:00)</option>
+                    <option value="evening">Вечер (20:00)</option>
+                    <option value="night">Ночь (02:00)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label>Температура воздуха, °C</label>
+                <input type="number" name="weather_temp" id="weather_temp" step="0.1" placeholder="Например: 18.5" min="-50" max="60" class="validate-on-input">
+                <div id="temp-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+                <label>Атмосферное давление, мм рт.ст.</label>
+                <input type="text" name="weather_pressure" id="weather_pressure" step="0.1" placeholder="Например: 755.0" inputmode="decimal" class="validate-on-input">
+                <div id="pressure-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group">
+                <label>Направление ветра</label>
+                <select name="weather_wind_dir" id="weather_wind_dir" class="validate-on-input">
+                    <option value="">— Не указано —</option>
+                    <option value="С">С</option>
+                    <option value="СВ">СВ</option>
+                    <option value="В">В</option>
+                    <option value="ЮВ">ЮВ</option>
+                    <option value="Ю">Ю</option>
+                    <option value="ЮЗ">ЮЗ</option>
+                    <option value="З">З</option>
+                    <option value="СЗ">СЗ</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Скорость ветра, м/с</label>
+                <input type="number" name="weather_wind_speed" id="weather_wind_speed" step="0.1" placeholder="Например: 4.2" min="0" max="50" class="validate-on-input">
+                <div id="wind-speed-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+            </div>
+        </div>
+        
+        <!-- Кастомный select для облачности с поиском -->
+        <div class="form-group" style="position: relative;">
+            <label for="weather_clouds_input">Облачность/осадки</label>
+            <input type="text" id="weather_clouds_input"
+                   name="weather_clouds_input"
+                   placeholder="Начните вводить для поиска..."
+                   autocomplete="off"
+                   style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;"
+                   class="validate-on-input">
+            <select id="weather_clouds" name="weather_clouds" style="display:none;">
+                <option value="">— Не указано —</option>
+                <option value="Ясно">Ясно</option>
+                <option value="Преимущественно ясно">Преимущественно ясно</option>
+                <option value="Малооблачно">Малооблачно</option>
+                <option value="Переменная облачность">Переменная облачность</option>
+                <option value="Облачно">Облачно</option>
+                <option value="Пасмурно">Пасмурно</option>
+                <option value="Сплошная облачность">Сплошная облачность</option>
+                <option value="Туман">Туман</option>
+                <option value="Туман с изморозью">Туман с изморозью</option>
+                <option value="Дымка">Дымка</option>
+                <option value="Слабая морось">Слабая морось</option>
+                <option value="Морось">Морось</option>
+                <option value="Сильная морось">Сильная морось</option>
+                <option value="Замерзающая морось">Замерзающая морось</option>
+                <option value="Небольшой дождь">Небольшой дождь</option>
+                <option value="Дождь">Дождь</option>
+                <option value="Сильный дождь">Сильный дождь</option>
+                <option value="Ледяной дождь">Ледяной дождь</option>
+                <option value="Затяжной дождь">Затяжной дождь</option>
+                <option value="Моросящий дождь">Моросящий дождь</option>
+                <option value="Небольшой ливень">Небольшой ливень</option>
+                <option value="Ливень">Ливень</option>
+                <option value="Сильный ливень">Сильный ливень</option>
+                <option value="Проливной дождь">Проливной дождь</option>
+                <option value="Небольшой снег">Небольшой снег</option>
+                <option value="Снег">Снег</option>
+                <option value="Сильный снег">Сильный снег</option>
+                <option value="Снегопад">Снегопад</option>
+                <option value="Мокрый снег">Мокрый снег</option>
+                <option value="Снежная крупа">Снежная крупа</option>
+                <option value="Снежные зерна">Снежные зерна</option>
+                <option value="Снег с дождём">Снег с дождём</option>
+                <option value="Гроза">Гроза</option>
+                <option value="Гроза с дождём">Гроза с дождём</option>
+                <option value="Гроза с градом">Гроза с градом</option>
+                <option value="Гроза с небольшим градом">Гроза с небольшим градом</option>
+                <option value="Гроза с сильным градом">Гроза с сильным градом</option>
+                <option value="Град">Град</option>
+                <option value="Ледяная крупа">Ледяная крупа</option>
+                <option value="Пыльная буря">Пыльная буря</option>
+                <option value="Мгла">Мгла</option>
+            </select>
+            <div id="clouds_suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none; border-radius:0 0 4px 4px;">
+            </div>
+            <div id="clouds-error" class="field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+            <small style="color:var(--text-muted); display:block; margin-top:4px;">
+                Начните вводить название для быстрого поиска
+            </small>
+        </div>
+
+        <!-- МНОЖЕСТВЕННЫЕ СНАСТИ И НАЖИВКИ -->
+        <label class="section-label"><span class="required">*</span> Снасти и наживки</label>
+        <div id="gear-bait-entries">
+            <div class="gear-bait-entry" style="background:var(--bg-input); border:1px solid var(--border-tag); padding:12px; margin-bottom:10px; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:var(--text-accent); font-size:12px;">Снасть #1</strong>
+                    <button type="button" class="remove-gear-bait" style="background:none; border:none; color:var(--text-danger); cursor:pointer; font-size:16px; display:none;" onclick="removeGearBaitEntry(this)">✕ Удалить</button>
+                </div>
+                <div class="row" style="position: relative;">
+                    <div class="form-group" style="margin-bottom:8px; flex:1; position: relative;">
+                        <label style="font-size:11px;">Снасть <span class="required">*</span></label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" name="gear_name[]" class="gear-input" list="gear-list" placeholder="Начните вводить..." autocomplete="off" style="flex:1; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;" required>
+                            <button type="button" class="select-gear-btn" style="padding:9px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px; white-space:nowrap;" onclick="openGearModal(this)">Выбрать</button>
+                        </div>
+                        <div class="gear-suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;"></div>
+                        <div class="gear-error field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <label style="font-size:11px;">Наживки <span class="required">*</span> (можно несколько)</label>
+                    <div class="baits-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; margin-bottom:8px;"></div>
+                    <div style="display:flex; gap:8px; position: relative;">
+                        <input type="text" class="bait-input" placeholder="Начните вводить название наживки..." list="bait-list" autocomplete="off" style="flex:1; padding:7px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:12px;">
+                        <div class="bait-suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;"></div>
+                        <button type="button" class="add-bait-btn" style="padding:7px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px;">+ Добавить</button>
+                        <button type="button" class="select-bait-btn" style="padding:7px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px;" onclick="openBaitModal(this)">Выбрать</button>
+                    </div>
+                    <div class="baits-error field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                </div>
+            </div>
+        </div>
+        <div id="gear-error-message" style="color:var(--text-danger); font-size:12px; margin-bottom:10px; display:none;">Добавьте хотя бы одну снасть с наживкой</div>
+        <button type="button" class="add-gear-bait-btn" onclick="addGearBaitEntry()" style="margin-bottom:16px; background:none; border:1px solid var(--border-primary); color:var(--text-nav); padding:8px 16px; cursor:pointer; font-size:12px;">+ Добавить снасть</button>
+
+        <label class="section-label"><span class="required">*</span> Улов по видам</label>
+        <div id="fish-entries">
+            <div class="fish-entry">
+                <div class="row">
+                    <div class="form-group" style="margin-bottom:0; position: relative;">
+                        <input type="text" name="fish_name[]" list="fish-list" placeholder="Вид рыбы" autocomplete="off" class="validate-on-input">
+                        <span class="fish-name-error field-error" style="color:var(--text-danger); font-size:10px; display:block; margin-top:2px;"></span>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <input type="number" name="fish_kg[]" placeholder="Вес, кг" step="0.1" min="0" max="100" class="validate-on-input">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <input type="number" name="fish_pcs[]" placeholder="Шт." min="0" max="999" class="validate-on-input">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <datalist id="fish-list">
+            {% for name in fish_names %}
+                <option value="{{ name }}">
+            {% endfor %}
+        </datalist>
+        <button type="button" class="add-fish-btn" onclick="addFish()">+ Добавить вид</button>
+
+        <div class="form-group" style="margin-top:16px;">
+            <label for="description">Описание и впечатления</label>
+            <textarea id="description" name="description" placeholder="Опишите условия, тактику ловли, особенности водоёма..." maxlength="5000"></textarea>
+        </div>
+
+        <!-- БЛОК ЗАГРУЗКИ ФОТОГРАФИЙ -->
+        <div class="form-group" style="margin-top:16px;">
+            <label>Фотографии с рыбалки (необязательно)</label>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <button type="button" id="addImageBtn" class="submit-btn" style="width: auto; padding: 8px 16px;">Добавить фото</button>
+                <div style="color: var(--text-muted); font-size: 12px;">Можно добавлять несколько файлов по очереди</div>
+            </div>
+            <small style="color:var(--text-muted); display:block; margin-top:4px;">
+                Поддерживаются форматы JPG, PNG, WEBP. Максимальный размер файла: 16 МБ.
+            </small>
+            <div id="image-preview-container" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:12px;"></div>
+            <input type="file" id="hiddenFileInput" name="images" multiple accept="image/*" style="display: none;">
+        </div>
+
+        <div class="form-group">
+            <label>Общая оценка рыбалки</label>
+            <div class="rating" id="rating-stars">
+                {% for i in range(5) %}
+                    <span class="star" data-value="{{ i + 1 }}">★</span>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="rating" id="rating-input" value="">
+        </div>
+
+        <button type="submit" class="submit-btn">Опубликовать отчёт</button>
+        <div id="form-errors" style="color:#c04e3c; margin-top:10px; font-size:12px;"></div>
+    </form>
+</div>
+
+<!-- Модальные окна для выбора снастей и наживок -->
+<div id="gearModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Выберите снасть</h3>
+            <button onclick="closeGearModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding:16px;">
+            <input type="text" id="gearModalSearch" placeholder="Поиск снасти..." style="width:100%; padding:8px; margin-bottom:12px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            <div id="gearModalList" style="display:flex; flex-wrap:wrap; gap:8px; max-height:400px; overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
+<div id="baitModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Выберите наживку</h3>
+            <button onclick="closeBaitModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding:16px;">
+            <input type="text" id="baitModalSearch" placeholder="Поиск наживки..." style="width:100%; padding:8px; margin-bottom:12px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            <div id="baitModalList" style="display:flex; flex-wrap:wrap; gap:8px; max-height:400px; overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+    let allGears = [];
+    let allBaits = [];
+    let currentGearInput = null;
+    let currentBaitContainer = null;
+    let selectedFiles = [];
+
+    // ============ ЗАГРУЗКА СПИСКОВ СНАСТЕЙ И НАЖИВОК ============
+    async function loadGearsAndBaits() {
+        try {
+            const gearRes = await fetch('/api/gears/all');
+            const gearData = await gearRes.json();
+            allGears = gearData.gears || [];
+            
+            const baitRes = await fetch('/api/baits/all');
+            const baitData = await baitRes.json();
+            allBaits = baitData.baits || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки снастей/наживок:', e);
+        }
+    }
+
+    // ============ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ПОДСВЕТКИ ============
+    function setFieldError(inputElement, errorElement, errorMessage) {
+        if (errorMessage) {
+            inputElement.classList.add('input-error');
+            errorElement.textContent = errorMessage;
+        } else {
+            inputElement.classList.remove('input-error');
+            errorElement.textContent = '';
+        }
+    }
+
+    // ============ ВАЛИДАЦИЯ ВОДОЁМА ============
+    function validateWaterbody() {
+        const input = document.getElementById('waterbody_name');
+        const errorDiv = document.getElementById('waterbody-error');
+        const value = input.value.trim();
+        const datalist = document.getElementById('waterbodies-list');
+        const options = Array.from(datalist.options).map(opt => opt.value);
+        
+        if (!value) {
+            setFieldError(input, errorDiv, 'Выберите водоём из списка');
+            return false;
+        }
+        
+        if (!options.includes(value)) {
+            setFieldError(input, errorDiv, 'Выберите водоём из выпадающего списка (начните вводить название)');
+            return false;
+        }
+        
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    // ============ ВАЛИДАЦИЯ ВИДОВ РЫБ ============
+    function validateFishName(inputElement, errorElement) {
+        const value = inputElement.value.trim();
+        const datalist = document.getElementById('fish-list');
+        const options = Array.from(datalist.options).map(opt => opt.value);
+        
+        if (!value) {
+            setFieldError(inputElement, errorElement, '');
+            return true;
+        }
+        
+        if (!options.includes(value)) {
+            setFieldError(inputElement, errorElement, 'Выберите вид рыбы из выпадающего списка');
+            return false;
+        }
+        
+        setFieldError(inputElement, errorElement, '');
+        return true;
+    }
+
+    function validateAllFish() {
+        let allValid = true;
+        const fishEntries = document.querySelectorAll('.fish-entry');
+        fishEntries.forEach(entry => {
+            const fishNameInput = entry.querySelector('input[name="fish_name[]"]');
+            const errorSpan = entry.querySelector('.fish-name-error');
+            if (fishNameInput && errorSpan) {
+                if (!validateFishName(fishNameInput, errorSpan)) allValid = false;
+            }
+        });
+        return allValid;
+    }
+
+    // ============ ВАЛИДАЦИЯ ПОГОДНЫХ ПОЛЕЙ ============
+    function validateTemperature() {
+        const input = document.getElementById('weather_temp');
+        const errorDiv = document.getElementById('temp-error');
+        const value = input.value.trim();
+        if (!value) { setFieldError(input, errorDiv, ''); return true; }
+        const temp = parseFloat(value);
+        if (isNaN(temp)) { setFieldError(input, errorDiv, 'Введите число'); return false; }
+        if (temp < -50 || temp > 60) { setFieldError(input, errorDiv, 'Температура должна быть от -50°C до +60°C'); return false; }
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validatePressure() {
+        const input = document.getElementById('weather_pressure');
+        const errorDiv = document.getElementById('pressure-error');
+        const value = input.value.trim();
+        if (!value) { setFieldError(input, errorDiv, ''); return true; }
+        const pressure = parseFloat(value);
+        if (isNaN(pressure)) { setFieldError(input, errorDiv, 'Введите число'); return false; }
+        if (pressure < 600 || pressure > 850) { setFieldError(input, errorDiv, 'Давление должно быть от 600 до 850 мм рт.ст.'); return false; }
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateWindSpeed() {
+        const input = document.getElementById('weather_wind_speed');
+        const errorDiv = document.getElementById('wind-speed-error');
+        const value = input.value.trim();
+        if (!value) { setFieldError(input, errorDiv, ''); return true; }
+        const windSpeed = parseFloat(value);
+        if (isNaN(windSpeed)) { setFieldError(input, errorDiv, 'Введите число'); return false; }
+        if (windSpeed < 0 || windSpeed > 50) { setFieldError(input, errorDiv, 'Скорость ветра должна быть от 0 до 50 м/с'); return false; }
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateWindDirection() {
+        const input = document.getElementById('weather_wind_dir');
+        const validDirs = ['', 'С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
+        return !input.value || validDirs.includes(input.value);
+    }
+
+    function validateClouds() {
+        const input = document.getElementById('weather_clouds_input');
+        const errorDiv = document.getElementById('clouds-error');
+        const value = input.value.trim();
+        const cloudsSelect = document.getElementById('weather_clouds');
+        const validClouds = Array.from(cloudsSelect.options).map(opt => opt.text);
+        if (!value) { setFieldError(input, errorDiv, ''); return true; }
+        if (!validClouds.includes(value)) { setFieldError(input, errorDiv, 'Выберите значение из выпадающего списка'); return false; }
+        setFieldError(input, errorDiv, '');
+        return true;
+    }
+
+    function validateAllWeather() {
+        return validateTemperature() && validatePressure() && validateWindSpeed() && validateWindDirection() && validateClouds();
+    }
+
+    // ============ ВАЛИДАЦИЯ СНАСТЕЙ И НАЖИВОК ============
+    function validateGearsAndBaits() {
+        const entries = document.querySelectorAll('.gear-bait-entry');
+        let hasValidGear = false;
+        let allGearsValid = true;
+        let allBaitsValid = true;
+        
+        entries.forEach(entry => {
+            const gearInput = entry.querySelector('.gear-input');
+            const gearValue = gearInput ? gearInput.value.trim() : '';
+            const gearError = entry.querySelector('.gear-error');
+            const baitsList = entry.querySelector('.baits-list');
+            const baitsError = entry.querySelector('.baits-error');
+            const baits = baitsList ? Array.from(baitsList.querySelectorAll('.bait-tag')).map(tag => tag.getAttribute('data-bait')) : [];
+            
+            if (!gearValue) {
+                if (gearError) setFieldError(gearInput, gearError, 'Выберите снасть из списка');
+                allGearsValid = false;
+            } else if (!allGears.includes(gearValue)) {
+                if (gearError) setFieldError(gearInput, gearError, 'Выберите снасть из выпадающего списка');
+                allGearsValid = false;
+            } else {
+                if (gearError) setFieldError(gearInput, gearError, '');
+                hasValidGear = true;
+            }
+            
+            if (baits.length === 0) {
+                if (baitsError) baitsError.textContent = 'Добавьте хотя бы одну наживку';
+                allBaitsValid = false;
+            } else {
+                let allBaitsInList = true;
+                for (const bait of baits) {
+                    if (!allBaits.includes(bait)) { allBaitsInList = false; break; }
+                }
+                if (!allBaitsInList) {
+                    if (baitsError) baitsError.textContent = 'Выберите наживки из выпадающего списка';
+                    allBaitsValid = false;
+                } else {
+                    if (baitsError) baitsError.textContent = '';
+                }
+            }
+        });
+        
+        const errorMessage = document.getElementById('gear-error-message');
+        if (!hasValidGear || !allGearsValid || !allBaitsValid) {
+            errorMessage.style.display = 'block';
+            if (!hasValidGear) errorMessage.textContent = 'Добавьте хотя бы одну снасть';
+            else if (!allGearsValid) errorMessage.textContent = 'Выберите корректные снасти из списка';
+            else if (!allBaitsValid) errorMessage.textContent = 'Добавьте хотя бы одну наживку для каждой снасти';
+            return false;
+        }
+        errorMessage.style.display = 'none';
+        return true;
+    }
+
+    // ============ ПОДСКАЗКИ ДЛЯ СНАСТИ ============
+    function initGearSuggestions(gearInput, suggestionsDiv) {
+        if (!gearInput || !suggestionsDiv) return;
+        function showSuggestions(query) {
+            if (!query.trim()) { suggestionsDiv.style.display = 'none'; return; }
+            const filtered = allGears.filter(gear => gear.toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length === 0) { suggestionsDiv.style.display = 'none'; return; }
+            suggestionsDiv.innerHTML = filtered.map(gear => `<div class="gear-suggestion-item" style="padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">${gear}</div>`).join('');
+            suggestionsDiv.style.display = 'block';
+            document.querySelectorAll('.gear-suggestion-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    gearInput.value = item.textContent;
+                    suggestionsDiv.style.display = 'none';
+                    const gearError = gearInput.closest('.form-group')?.querySelector('.gear-error');
+                    if (gearError) gearError.textContent = '';
+                    gearInput.classList.remove('input-error');
+                });
+            });
+        }
+        gearInput.addEventListener('input', (e) => {
+            showSuggestions(e.target.value);
+            const gearError = gearInput.closest('.form-group')?.querySelector('.gear-error');
+            if (gearInput.value.trim() && !allGears.includes(gearInput.value.trim())) {
+                setFieldError(gearInput, gearError, 'Выберите снасть из выпадающего списка');
+            } else if (gearInput.value.trim() && allGears.includes(gearInput.value.trim())) {
+                setFieldError(gearInput, gearError, '');
+            }
+        });
+        gearInput.addEventListener('focus', () => { if (gearInput.value) showSuggestions(gearInput.value); });
+        document.addEventListener('click', (e) => {
+            if (!gearInput.contains(e.target) && !suggestionsDiv.contains(e.target)) suggestionsDiv.style.display = 'none';
+        });
+    }
+
+    // ============ ПОДСКАЗКИ ДЛЯ НАЖИВКИ ============
+    function initBaitSuggestions(baitInput, suggestionsDiv) {
+        if (!baitInput || !suggestionsDiv) return;
+        function showSuggestions(query) {
+            if (!query.trim()) { suggestionsDiv.style.display = 'none'; return; }
+            const filtered = allBaits.filter(bait => bait.toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length === 0) { suggestionsDiv.style.display = 'none'; return; }
+            suggestionsDiv.innerHTML = filtered.map(bait => `<div class="bait-suggestion-item" style="padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">${bait}</div>`).join('');
+            suggestionsDiv.style.display = 'block';
+            document.querySelectorAll('.bait-suggestion-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    baitInput.value = item.textContent;
+                    suggestionsDiv.style.display = 'none';
+                });
+            });
+        }
+        baitInput.addEventListener('input', (e) => showSuggestions(e.target.value));
+        baitInput.addEventListener('focus', () => { if (baitInput.value) showSuggestions(baitInput.value); });
+        document.addEventListener('click', (e) => {
+            if (!baitInput.contains(e.target) && !suggestionsDiv.contains(e.target)) suggestionsDiv.style.display = 'none';
+        });
+    }
+
+    // ============ МОДАЛЬНЫЕ ОКНА ДЛЯ СНАСТЕЙ И НАЖИВОК ============
+    function openGearModal(btn) {
+        const entry = btn.closest('.gear-bait-entry');
+        currentGearInput = entry.querySelector('.gear-input');
+        const modal = document.getElementById('gearModal');
+        const searchInput = document.getElementById('gearModalSearch');
+        const listContainer = document.getElementById('gearModalList');
+        function renderGearList(filter = '') {
+            const filtered = allGears.filter(gear => gear.toLowerCase().includes(filter.toLowerCase()));
+            listContainer.innerHTML = filtered.map(gear => `<div class="gear-modal-item" data-gear="${gear.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:20px; font-size:13px; cursor:pointer; transition:0.2s;">${gear}</div>`).join('');
+            document.querySelectorAll('.gear-modal-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const gearName = item.getAttribute('data-gear');
+                    if (currentGearInput) {
+                        currentGearInput.value = gearName;
+                        const gearError = currentGearInput.closest('.form-group')?.querySelector('.gear-error');
+                        if (gearError) gearError.textContent = '';
+                        currentGearInput.classList.remove('input-error');
+                    }
+                    closeGearModal();
+                });
+            });
+        }
+        searchInput.value = '';
+        renderGearList('');
+        searchInput.oninput = (e) => renderGearList(e.target.value);
+        modal.style.display = 'flex';
+    }
+    function closeGearModal() { document.getElementById('gearModal').style.display = 'none'; currentGearInput = null; }
+
+    function openBaitModal(btn) {
+        const entry = btn.closest('.gear-bait-entry');
+        currentBaitContainer = entry;
+        const modal = document.getElementById('baitModal');
+        const searchInput = document.getElementById('baitModalSearch');
+        const listContainer = document.getElementById('baitModalList');
+        function renderBaitList(filter = '') {
+            const filtered = allBaits.filter(bait => bait.toLowerCase().includes(filter.toLowerCase()));
+            listContainer.innerHTML = filtered.map(bait => `<div class="bait-modal-item" data-bait="${bait.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:20px; font-size:13px; cursor:pointer; transition:0.2s;">${bait}</div>`).join('');
+            document.querySelectorAll('.bait-modal-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const baitName = item.getAttribute('data-bait');
+                    addBaitToCurrentList(baitName);
+                    closeBaitModal();
+                });
+            });
+        }
+        searchInput.value = '';
+        renderBaitList('');
+        searchInput.oninput = (e) => renderBaitList(e.target.value);
+        modal.style.display = 'flex';
+    }
+    function closeBaitModal() { document.getElementById('baitModal').style.display = 'none'; currentBaitContainer = null; }
+    function addBaitToCurrentList(baitName) {
+        if (!currentBaitContainer) return;
+        const baitsList = currentBaitContainer.querySelector('.baits-list');
+        if (!baitsList) return;
+        const existingBaits = Array.from(baitsList.querySelectorAll('.bait-tag')).map(tag => tag.getAttribute('data-bait'));
+        if (existingBaits.includes(baitName)) { alert('Эта наживка уже добавлена'); return; }
+        const baitTag = document.createElement('span');
+        baitTag.className = 'bait-tag';
+        baitTag.setAttribute('data-bait', baitName);
+        baitTag.style.cssText = 'display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--btn-bg); color:var(--btn-text); border-radius:16px; font-size:12px;';
+        baitTag.innerHTML = `${baitName}<span class="remove-bait" style="cursor:pointer; font-weight:bold; font-size:14px; line-height:1; opacity:0.7; margin-left:6px;" onclick="this.parentElement.remove()">✕</span>`;
+        baitsList.appendChild(baitTag);
+        const baitsError = currentBaitContainer.querySelector('.baits-error');
+        if (baitsError) baitsError.textContent = '';
+    }
+
+    // ============ УПРАВЛЕНИЕ СНАСТЯМИ ============
+    let gearBaitCounter = 1;
+    function addGearBaitEntry() {
+        gearBaitCounter++;
+        const container = document.getElementById('gear-bait-entries');
+        const entry = document.createElement('div');
+        entry.className = 'gear-bait-entry';
+        entry.style.cssText = 'background:var(--bg-input); border:1px solid var(--border-tag); padding:12px; margin-bottom:10px; border-radius:4px;';
+        entry.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--text-accent); font-size:12px;">Снасть #${gearBaitCounter}</strong>
+                <button type="button" class="remove-gear-bait" style="background:none; border:none; color:var(--text-danger); cursor:pointer; font-size:16px;" onclick="removeGearBaitEntry(this)">✕ Удалить</button>
+            </div>
+            <div class="row" style="position: relative;">
+                <div class="form-group" style="margin-bottom:8px; flex:1; position: relative;">
+                    <label style="font-size:11px;">Снасть <span class="required">*</span></label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" name="gear_name[]" class="gear-input" list="gear-list" placeholder="Начните вводить..." autocomplete="off" style="flex:1; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;" required>
+                        <button type="button" class="select-gear-btn" style="padding:9px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px; white-space:nowrap;" onclick="openGearModal(this)">Выбрать</button>
+                    </div>
+                    <div class="gear-suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;"></div>
+                    <div class="gear-error field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                </div>
+            </div>
+            <div style="margin-top:8px;">
+                <label style="font-size:11px;">Наживки <span class="required">*</span> (можно несколько)</label>
+                <div class="baits-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; margin-bottom:8px;"></div>
+                <div style="display:flex; gap:8px; position: relative;">
+                    <input type="text" class="bait-input" placeholder="Начните вводить название наживки..." list="bait-list" autocomplete="off" style="flex:1; padding:7px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:12px;">
+                    <div class="bait-suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;"></div>
+                    <button type="button" class="add-bait-btn" style="padding:7px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px;">+ Добавить</button>
+                    <button type="button" class="select-bait-btn" style="padding:7px 14px; background:var(--btn-bg); color:var(--btn-text); border:1px solid var(--btn-border); cursor:pointer; font-size:12px;" onclick="openBaitModal(this)">Выбрать</button>
+                </div>
+                <div class="baits-error field-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+            </div>
+        `;
+        container.appendChild(entry);
+        initGearBaitHandlers(entry);
+    }
+    function removeGearBaitEntry(btn) { const entry = btn.closest('.gear-bait-entry'); if (entry) entry.remove(); }
+    function initGearBaitHandlers(container) {
+        const baitInput = container.querySelector('.bait-input');
+        const baitSuggestionsDiv = container.querySelector('.bait-suggestions');
+        const addBaitBtn = container.querySelector('.add-bait-btn');
+        const baitsList = container.querySelector('.baits-list');
+        const gearInput = container.querySelector('.gear-input');
+        const gearSuggestionsDiv = container.querySelector('.gear-suggestions');
+        if (gearInput && gearSuggestionsDiv) initGearSuggestions(gearInput, gearSuggestionsDiv);
+        if (baitInput && baitSuggestionsDiv) initBaitSuggestions(baitInput, baitSuggestionsDiv);
+        function addBait() {
+            const baitValue = baitInput.value.trim();
+            if (!baitValue) return;
+            if (!allBaits.includes(baitValue)) { alert('Выберите наживку из выпадающего списка'); return; }
+            const existingBaits = Array.from(baitsList.querySelectorAll('.bait-tag')).map(tag => tag.getAttribute('data-bait'));
+            if (existingBaits.includes(baitValue)) { alert('Эта наживка уже добавлена'); return; }
+            const baitTag = document.createElement('span');
+            baitTag.className = 'bait-tag';
+            baitTag.setAttribute('data-bait', baitValue);
+            baitTag.style.cssText = 'display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--btn-bg); color:var(--btn-text); border-radius:16px; font-size:12px;';
+            baitTag.innerHTML = `${baitValue}<span class="remove-bait" style="cursor:pointer; font-weight:bold; font-size:14px; line-height:1; opacity:0.7; margin-left:6px;" onclick="this.parentElement.remove()">✕</span>`;
+            baitsList.appendChild(baitTag);
+            baitInput.value = '';
+            const baitsError = container.querySelector('.baits-error');
+            if (baitsError) baitsError.textContent = '';
+        }
+        addBaitBtn.addEventListener('click', addBait);
+        baitInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); addBait(); } });
+    }
+
+    // ============ ДОБАВЛЕНИЕ ВИДОВ РЫБ ============
+    function addFish() {
+        const container = document.getElementById('fish-entries');
+        const entry = document.createElement('div');
+        entry.className = 'fish-entry';
+        entry.innerHTML = `
+            <div class="row">
+                <div class="form-group" style="margin-bottom:0; position: relative;">
+                    <input type="text" name="fish_name[]" list="fish-list" placeholder="Вид рыбы" autocomplete="off" class="validate-on-input">
+                    <span class="fish-name-error field-error" style="color:var(--text-danger); font-size:10px; display:block; margin-top:2px;"></span>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <input type="number" name="fish_kg[]" placeholder="Вес, кг" step="0.1" min="0" max="100" class="validate-on-input">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <input type="number" name="fish_pcs[]" placeholder="Шт." min="0" max="999" class="validate-on-input">
+                </div>
+                <button type="button" style="background:none;border:none;color:#6b7a64;cursor:pointer;font-size:16px;" onclick="this.closest('.fish-entry').remove()">✕</button>
+            </div>
+        `;
+        container.appendChild(entry);
+        const fishNameInput = entry.querySelector('input[name="fish_name[]"]');
+        const errorSpan = entry.querySelector('.fish-name-error');
+        if (fishNameInput) {
+            fishNameInput.addEventListener('input', () => validateFishName(fishNameInput, errorSpan));
+            fishNameInput.addEventListener('blur', () => validateFishName(fishNameInput, errorSpan));
+        }
+    }
+
+    // Функция для сбора данных о снастях и наживках
+    function collectGearAndBaits() {
+        const gearNames = [];
+        const gearBaitsData = [];
+        document.querySelectorAll('.gear-bait-entry').forEach(entry => {
+            const gearInput = entry.querySelector('.gear-input');
+            const gearName = gearInput ? gearInput.value.trim() : '';
+            if (!gearName) return;
+            const baits = [];
+            const baitTags = entry.querySelectorAll('.baits-list .bait-tag');
+            baitTags.forEach(tag => {
+                const baitName = tag.getAttribute('data-bait');
+                if (baitName) baits.push(baitName);
+            });
+            gearNames.push(gearName);
+            gearBaitsData.push(baits);
+        });
+        return { gearNames, gearBaitsData };
+    }
+
+    function initRatingStars() {
+        const stars = document.querySelectorAll('#rating-stars .star');
+        const ratingInput = document.getElementById('rating-input');
+        function updateStars(value) { stars.forEach((star, idx) => { if (idx < value) star.classList.add('active'); else star.classList.remove('active'); }); }
+        stars.forEach((star, idx) => { star.addEventListener('click', () => { ratingInput.value = idx+1; updateStars(idx+1); }); });
+        if (ratingInput.value) updateStars(parseInt(ratingInput.value)); else updateStars(0);
+    }
+
+    function setupPressureMask() {
+        const pressureInput = document.getElementById('weather_pressure');
+        if (!pressureInput) return;
+        pressureInput.addEventListener('input', function(e) {
+            let value = this.value.replace(/[^\d.]/g, '');
+            let parts = value.split('.');
+            if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+            if (parts.length === 2 && parts[1].length > 2) value = parts[0] + '.' + parts[1].substring(0,2);
+            this.value = value;
+        });
+        pressureInput.addEventListener('blur', function() { let value = parseFloat(this.value); if (!isNaN(value)) this.value = value.toFixed(1); });
+    }
+
+    async function fetchWeatherForWaterbody(waterbodyId, targetDate, timeOfDay = 'day') {
+        try {
+            const url = `/api/waterbodies/${waterbodyId}/weather?date=${targetDate}&time=${timeOfDay}&t=${Date.now()}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.ok && data.weather) return data.weather;
+            return null;
+        } catch (err) { console.warn('Ошибка получения погоды:', err); return null; }
+    }
+
+    function normalizeWeatherDescription(desc) {
+        if (!desc) return '';
+        const lower = desc.toLowerCase();
+        if (lower.includes('ясно') || lower.includes('clear')) return 'Ясно';
+        if (lower.includes('преимущественно ясно')) return 'Преимущественно ясно';
+        if (lower.includes('переменная облачность')) return 'Переменная облачность';
+        if (lower.includes('пасмурно')) return 'Пасмурно';
+        if (lower.includes('туман')) return 'Туман';
+        if (lower.includes('дождь')) return 'Дождь';
+        if (lower.includes('снег')) return 'Снег';
+        if (lower.includes('гроза')) return 'Гроза';
+        return desc;
+    }
+
+    // ============ КАСТОМНЫЙ SELECT ДЛЯ ОБЛАЧНОСТИ С ПОИСКОМ ============
+    (function() {
+        const cloudsSelect = document.getElementById('weather_clouds');
+        const cloudsInput = document.getElementById('weather_clouds_input');
+        const suggestionsDiv = document.getElementById('clouds_suggestions');
+        const cloudsError = document.getElementById('clouds-error');
+        if (!cloudsSelect || !cloudsInput) return;
+        function getAllOptions() { return Array.from(cloudsSelect.options).filter(opt => opt.value !== '').map(opt => ({ value: opt.value, text: opt.text })); }
+        function normalizeString(str) { return str ? str.trim().replace(/\s+/g, ' ') : ''; }
+        function showSuggestions(filterText) {
+            const options = getAllOptions();
+            const filterLower = normalizeString(filterText).toLowerCase();
+            let filteredOptions = options;
+            if (filterText) filteredOptions = options.filter(opt => opt.text.toLowerCase().includes(filterLower));
+            if (filteredOptions.length === 0) { suggestionsDiv.style.display = 'none'; return; }
+            suggestionsDiv.innerHTML = filteredOptions.map(opt => `<div class="clouds-suggestion-item" data-value="${opt.value.replace(/"/g, '&quot;')}" data-text="${opt.text.replace(/"/g, '&quot;')}" style="padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">${opt.text}</div>`).join('');
+            suggestionsDiv.style.display = 'block';
+            document.querySelectorAll('.clouds-suggestion-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const value = item.getAttribute('data-value');
+                    const text = item.getAttribute('data-text');
+                    cloudsSelect.value = value;
+                    cloudsInput.value = text;
+                    suggestionsDiv.style.display = 'none';
+                    setFieldError(cloudsInput, cloudsError, '');
+                });
+            });
+        }
+        function hideSuggestions() { suggestionsDiv.style.display = 'none'; }
+        cloudsInput.addEventListener('input', (e) => {
+            let value = normalizeString(e.target.value);
+            if (value === '') { cloudsSelect.value = ''; hideSuggestions(); setFieldError(cloudsInput, cloudsError, ''); return; }
+            showSuggestions(value);
+            const options = getAllOptions();
+            const exactMatch = options.find(opt => opt.text === value);
+            if (exactMatch) { cloudsSelect.value = exactMatch.value; setFieldError(cloudsInput, cloudsError, ''); }
+            else { cloudsSelect.value = ''; setFieldError(cloudsInput, cloudsError, 'Выберите значение из выпадающего списка'); }
+        });
+        cloudsInput.addEventListener('focus', () => { const currentValue = normalizeString(cloudsInput.value); if (currentValue === '') showSuggestions(''); });
+        cloudsInput.addEventListener('blur', () => { setTimeout(() => { hideSuggestions(); let value = normalizeString(cloudsInput.value); if (value) { const options = getAllOptions(); const exactMatch = options.find(opt => opt.text === value); if (exactMatch) { cloudsSelect.value = exactMatch.value; cloudsInput.value = exactMatch.text; setFieldError(cloudsInput, cloudsError, ''); } else { cloudsSelect.value = ''; cloudsInput.value = ''; setFieldError(cloudsInput, cloudsError, 'Выберите значение из выпадающего списка'); } } }, 200); });
+        cloudsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const firstSuggestion = document.querySelector('.clouds-suggestion-item'); if (firstSuggestion) { const value = firstSuggestion.getAttribute('data-value'); const text = firstSuggestion.getAttribute('data-text'); cloudsSelect.value = value; cloudsInput.value = text; hideSuggestions(); setFieldError(cloudsInput, cloudsError, ''); } } if (e.key === 'Escape') hideSuggestions(); });
+        window.setCloudsValue = function(value) {
+            if (!value) { cloudsSelect.value = ''; cloudsInput.value = ''; setFieldError(cloudsInput, cloudsError, ''); return; }
+            const normalizedValue = normalizeString(value);
+            const options = getAllOptions();
+            let option = options.find(opt => opt.value === normalizedValue);
+            if (option) { cloudsSelect.value = option.value; cloudsInput.value = option.text; setFieldError(cloudsInput, cloudsError, ''); return; }
+            option = options.find(opt => opt.text === normalizedValue);
+            if (option) { cloudsSelect.value = option.value; cloudsInput.value = option.text; setFieldError(cloudsInput, cloudsError, ''); return; }
+            const similarOption = options.find(opt => opt.text.toLowerCase() === normalizedValue.toLowerCase() || opt.text.toLowerCase().includes(normalizedValue.toLowerCase()) || normalizedValue.toLowerCase().includes(opt.text.toLowerCase()));
+            if (similarOption) { cloudsSelect.value = similarOption.value; cloudsInput.value = similarOption.text; setFieldError(cloudsInput, cloudsError, ''); } else { cloudsSelect.value = ''; cloudsInput.value = ''; setFieldError(cloudsInput, cloudsError, 'Выберите значение из выпадающего списка'); }
+        };
+    })();
+
+    async function fillWeatherByWaterbody(waterbodyName, targetDate, timeOfDay = 'day') {
+        if (!waterbodyName || !targetDate) return;
+        try {
+            const searchRes = await fetch(`/api/waterbodies/search?q=${encodeURIComponent(waterbodyName)}&limit=5`);
+            const searchData = await searchRes.json();
+            if (searchData.items && searchData.items.length) {
+                const exactMatch = searchData.items.find(wb => wb.name.toLowerCase() === waterbodyName.toLowerCase());
+                if (exactMatch) {
+                    const weather = await fetchWeatherForWaterbody(exactMatch.id, targetDate, timeOfDay);
+                    if (weather) {
+                        if (weather.temperature != null) document.getElementById('weather_temp').value = weather.temperature;
+                        if (weather.pressure != null) document.getElementById('weather_pressure').value = parseFloat(weather.pressure).toFixed(1);
+                        if (weather.wind_speed != null) document.getElementById('weather_wind_speed').value = weather.wind_speed;
+                        if (weather.wind_direction != null) {
+                            const dir = weather.wind_direction;
+                            let dirText = '';
+                            if (dir >= 0 && dir < 22.5) dirText = 'С';
+                            else if (dir < 67.5) dirText = 'СВ';
+                            else if (dir < 112.5) dirText = 'В';
+                            else if (dir < 157.5) dirText = 'ЮВ';
+                            else if (dir < 202.5) dirText = 'Ю';
+                            else if (dir < 247.5) dirText = 'ЮЗ';
+                            else if (dir < 292.5) dirText = 'З';
+                            else if (dir < 337.5) dirText = 'СЗ';
+                            else dirText = 'С';
+                            const windDirSelect = document.getElementById('weather_wind_dir');
+                            if (windDirSelect.querySelector(`option[value="${dirText}"]`)) windDirSelect.value = dirText;
+                        }
+                        if (weather.weather_desc && window.setCloudsValue) window.setCloudsValue(normalizeWeatherDescription(weather.weather_desc));
+                    }
+                }
+            }
+        } catch (err) { console.warn('Ошибка загрузки погоды:', err); }
+    }
+
+    // ============ УПРАВЛЕНИЕ ИЗОБРАЖЕНИЯМИ ============
+    function updateImagePreview() {
+        const container = document.getElementById('image-preview-container');
+        if (!container) return;
+        container.innerHTML = '';
+        if (selectedFiles.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Фотографии не выбраны</div>';
+            return;
+        }
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgContainer = document.createElement('div');
+                imgContainer.style.position = 'relative';
+                imgContainer.style.width = '100px';
+                imgContainer.style.height = '100px';
+                imgContainer.style.overflow = 'hidden';
+                imgContainer.style.borderRadius = '6px';
+                imgContainer.style.border = '1px solid var(--border-tag)';
+                imgContainer.style.cursor = 'pointer';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'cover';
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', () => openLightbox(e.target.result));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.style.position = 'absolute';
+                deleteBtn.style.top = '4px';
+                deleteBtn.style.right = '4px';
+                deleteBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+                deleteBtn.style.color = 'white';
+                deleteBtn.style.border = 'none';
+                deleteBtn.style.borderRadius = '50%';
+                deleteBtn.style.width = '20px';
+                deleteBtn.style.height = '20px';
+                deleteBtn.style.cursor = 'pointer';
+                deleteBtn.style.fontSize = '12px';
+                deleteBtn.style.display = 'flex';
+                deleteBtn.style.alignItems = 'center';
+                deleteBtn.style.justifyContent = 'center';
+                deleteBtn.innerHTML = '✕';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectedFiles.splice(index, 1);
+                    updateImagePreview();
+                });
+
+                imgContainer.appendChild(img);
+                imgContainer.appendChild(deleteBtn);
+                container.appendChild(imgContainer);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function addFiles(newFiles) {
+        for (let file of newFiles) {
+            if (!file.type.match('image.*')) {
+                alert(`Файл "${file.name}" не является изображением и будет пропущен.`);
+                continue;
+            }
+            if (file.size > 16 * 1024 * 1024) {
+                alert(`Файл "${file.name}" превышает 16 МБ и будет пропущен.`);
+                continue;
+            }
+            selectedFiles.push(file);
+        }
+        updateImagePreview();
+    }
+
+    function openLightbox(src) {
+        let lightbox = document.getElementById('image-lightbox');
+        if (!lightbox) {
+            lightbox = document.createElement('div');
+            lightbox.id = 'image-lightbox';
+            lightbox.style.cssText = `display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center;`;
+            const content = document.createElement('div');
+            content.style.cssText = `position: relative; max-width: 90%; max-height: 90%; text-align: center;`;
+            const img = document.createElement('img');
+            img.id = 'lightbox-img';
+            img.style.cssText = `max-width: 100%; max-height: 80vh; display: block; margin: 0 auto; border-radius: 8px;`;
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '&times;';
+            closeBtn.style.cssText = `position: absolute; top: -40px; right: 0; background: none; border: none; color: white; font-size: 32px; cursor: pointer; padding: 8px 16px;`;
+            closeBtn.addEventListener('click', () => { lightbox.style.display = 'none'; });
+            lightbox.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.style.display = 'none'; });
+            content.appendChild(img);
+            content.appendChild(closeBtn);
+            lightbox.appendChild(content);
+            document.body.appendChild(lightbox);
+        }
+        const lightboxImg = document.getElementById('lightbox-img');
+        if (lightboxImg) lightboxImg.src = src;
+        lightbox.style.display = 'flex';
+    }
+
+    document.getElementById('addImageBtn')?.addEventListener('click', () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.accept = 'image/*';
+        fileInput.onchange = (e) => {
+            if (e.target.files && e.target.files.length > 0) addFiles(Array.from(e.target.files));
+        };
+        fileInput.click();
+    });
+
+    // ============ ОБРАБОТКА ОТПРАВКИ ФОРМЫ ============
+    const originalForm = document.getElementById('reportForm');
+    originalForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Валидация
+        const errors = [];
+        const errorDiv = document.getElementById('form-errors');
+        errorDiv.innerHTML = '';
+
+        if (!validateWaterbody()) errors.push('Выберите корректный водоём из списка');
+        if (!validateAllWeather()) errors.push('Проверьте правильность ввода погодных данных');
+        if (!validateGearsAndBaits()) errors.push('Укажите хотя бы одну снасть с наживкой');
+        if (!validateAllFish()) errors.push('Выберите корректные виды рыб из выпадающего списка');
+
+        const fishEntries = document.querySelectorAll('.fish-entry');
+        let hasValidFish = false;
+        fishEntries.forEach(entry => {
+            const fishName = entry.querySelector('input[name="fish_name[]"]').value.trim();
+            const kg = parseFloat(entry.querySelector('input[name="fish_kg[]"]').value) || 0;
+            const pcs = parseInt(entry.querySelector('input[name="fish_pcs[]"]').value) || 0;
+            if (fishName) {
+                if (kg === 0 && pcs === 0) errors.push(`Для вида "${fishName}" укажите вес ИЛИ количество`);
+                else hasValidFish = true;
+                if (kg > 100) errors.push(`Вес для "${fishName}" не более 100 кг`);
+                if (kg < 0) errors.push(`Вес для "${fishName}" не может быть отрицательным`);
+                if (pcs > 999) errors.push(`Количество для "${fishName}" не более 999 шт`);
+                if (pcs < 0) errors.push(`Количество для "${fishName}" не может быть отрицательным`);
+            }
+        });
+        if (!hasValidFish) errors.push('Добавьте хотя бы один вид рыбы с указанием веса или количества');
+
+        if (errors.length > 0) {
+            errorDiv.innerHTML = errors.join('<br>');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        // Удаляем старые скрытые поля, если есть
+        document.querySelectorAll('input[name="bait_names_for_gear[]"]').forEach(el => el.remove());
+
+        // Добавляем скрытые поля с наживками
+        const { gearNames, gearBaitsData } = collectGearAndBaits();
+        gearBaitsData.forEach(baits => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'bait_names_for_gear[]';
+            input.value = JSON.stringify(baits);
+            originalForm.appendChild(input);
+        });
+
+        // Создаём FormData вручную, чтобы гарантировать корректную передачу файлов
+        const formData = new FormData();
+
+        // Добавляем все поля формы, кроме файловых (images мы добавим отдельно)
+        for (let el of originalForm.elements) {
+            if (!el.name || el.name === '') continue;
+            if (el.type === 'file') continue;
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                if (el.checked) formData.append(el.name, el.value);
+            } else {
+                formData.append(el.name, el.value);
+            }
+        }
+
+        // Добавляем файлы из selectedFiles
+        selectedFiles.forEach(file => formData.append('images', file));
+
+        // Отправка
+        fetch(originalForm.action || window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(response => {
+            if (response.redirected) window.location.href = response.url;
+            else return response.text().then(html => { document.open(); document.write(html); document.close(); });
+        }).catch(err => { alert('Ошибка отправки: ' + err.message); });
+    });
+
+    // ============ ИНИЦИАЛИЗАЦИЯ ============
+    document.addEventListener('DOMContentLoaded', async () => {
+        initRatingStars();
+        setupPressureMask();
+        await loadGearsAndBaits();
+
+        document.querySelectorAll('.fish-entry').forEach(entry => {
+            const fishNameInput = entry.querySelector('input[name="fish_name[]"]');
+            const errorSpan = entry.querySelector('.fish-name-error');
+            if (fishNameInput && errorSpan) {
+                fishNameInput.addEventListener('input', () => validateFishName(fishNameInput, errorSpan));
+                fishNameInput.addEventListener('blur', () => validateFishName(fishNameInput, errorSpan));
+            }
+        });
+
+        const style = document.createElement('style');
+        style.textContent = `.input-error { border: 1px solid #c04e3c !important; background-color: rgba(192,78,60,0.05) !important; outline: none; } .gear-suggestion-item:hover, .bait-suggestion-item:hover, .clouds-suggestion-item:hover { background-color: var(--bg-hover); } .field-error { font-size: 11px; margin-top: 4px; }`;
+        document.head.appendChild(style);
+
+        const firstEntry = document.querySelector('.gear-bait-entry');
+        if (firstEntry) initGearBaitHandlers(firstEntry);
+
+        const preselectedWaterbody = document.getElementById('waterbody_name').value.trim();
+        const targetDate = document.getElementById('date').value;
+        const timeOfDay = document.getElementById('time_of_day')?.value || 'day';
+        if (preselectedWaterbody && targetDate) setTimeout(() => fillWeatherByWaterbody(preselectedWaterbody, targetDate, timeOfDay), 100);
+
+        document.getElementById('waterbody_name')?.addEventListener('change', async (e) => {
+            const name = e.target.value.trim();
+            const date = document.getElementById('date').value;
+            const tod = document.getElementById('time_of_day')?.value || 'day';
+            if (name && date && validateWaterbody()) await fillWeatherByWaterbody(name, date, tod);
+        });
+        document.getElementById('date')?.addEventListener('change', async () => {
+            const name = document.getElementById('waterbody_name').value.trim();
+            const date = document.getElementById('date').value;
+            const tod = document.getElementById('time_of_day')?.value || 'day';
+            if (name && date && validateWaterbody()) await fillWeatherByWaterbody(name, date, tod);
+        });
+        document.getElementById('time_of_day')?.addEventListener('change', async () => {
+            const name = document.getElementById('waterbody_name').value.trim();
+            const date = document.getElementById('date').value;
+            const tod = document.getElementById('time_of_day')?.value || 'day';
+            if (name && date && validateWaterbody()) await fillWeatherByWaterbody(name, date, tod);
+        });
+        document.getElementById('weather_temp')?.addEventListener('input', validateTemperature);
+        document.getElementById('weather_pressure')?.addEventListener('input', validatePressure);
+        document.getElementById('weather_wind_speed')?.addEventListener('input', validateWindSpeed);
+    });
+</script>
+{% endblock %}

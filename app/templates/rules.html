@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}Правила рыболовства — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <div class="card" style="padding:20px; margin-bottom:16px;">
+        <h2 style="font-size:var(--font-size-lg); color:var(--text-heading); margin-bottom: 16px;">Правила рыболовства</h2>
+        <div class="form-group">
+            <label style="font-weight: 600; margin-bottom: 8px; display: block;">Регион</label>
+            <div style="position: relative;">
+                <input type="text" id="regionInput" placeholder="Начните вводить название региона..." 
+                       style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-input); color: var(--text-primary); font-size: var(--font-size-sm); border-radius: 4px;"
+                       autocomplete="off">
+                <div id="regionSuggestions"></div>
+            </div>
+            <input type="hidden" id="selectedRegionId" value="">
+            <div id="regionError" style="color: var(--text-danger); font-size: 12px; margin-top: 5px;"></div>
+        </div>
+    </div>
+
+    <div id="rulesContainer" style="display: none;">
+        <!-- Вкладки -->
+        <div style="margin-bottom: 16px;">
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid var(--border-primary); flex-wrap: wrap;">
+                <button class="tab-btn" data-tab="general" onclick="switchTab('general')" style="padding: 8px 16px; background: none; border: none; color: var(--text-accent); font-weight: 600; cursor: pointer; border-bottom: 3px solid var(--text-accent);">Общие правила</button>
+                <button class="tab-btn" data-tab="regional" onclick="switchTab('regional')" style="padding: 8px 16px; background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;">Правила по видам</button>
+                <button class="tab-btn" data-tab="seasonal" onclick="switchTab('seasonal')" style="padding: 8px 16px; background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;">Сезонные запреты</button>
+                <button class="tab-btn" data-tab="restricted" onclick="switchTab('restricted')" style="padding: 8px 16px; background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;">Запретные зоны</button>
+                <button class="tab-btn" data-tab="daily" onclick="switchTab('daily')" style="padding: 8px 16px; background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;">Суточные лимиты</button>
+            </div>
+        </div>
+
+        <!-- Содержимое вкладок -->
+        <div id="tab-general" class="tab-content">
+            <div class="panel" style="padding:20px;">
+                <div id="generalRuleContent">Выберите регион</div>
+            </div>
+        </div>
+        <div id="tab-regional" class="tab-content" style="display:none;">
+            <div class="panel" style="padding:20px;">
+                <div id="regionalRulesContent"></div>
+            </div>
+        </div>
+        <div id="tab-seasonal" class="tab-content" style="display:none;">
+            <div class="panel" style="padding:20px;">
+                <div id="seasonalBansContent"></div>
+            </div>
+        </div>
+        <div id="tab-restricted" class="tab-content" style="display:none;">
+            <div class="panel" style="padding:20px;">
+                <div id="restrictedAreasContent"></div>
+            </div>
+        </div>
+        <div id="tab-daily" class="tab-content" style="display:none;">
+            <div class="panel" style="padding:20px;">
+                <div id="dailyLimitsContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+    #regionSuggestions {
+        position: absolute;
+        top: calc(100% + 2px);
+        left: 0;
+        right: 0;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-input);
+        border-radius: 4px;
+        max-height: 320px;
+        overflow-y: auto;
+        z-index: 9999;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        display: none;
+    }
+    .region-suggestion {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-tag);
+        font-size: 13px;
+        transition: background 0.2s;
+    }
+    .region-suggestion:last-child {
+        border-bottom: none;
+    }
+    .region-suggestion:hover {
+        background-color: var(--bg-hover);
+    }
+    /* Убедимся, что контейнер с карточкой не обрезает выпадающий список */
+    .card {
+        overflow: visible !important;
+    }
+    .form-group {
+        overflow: visible !important;
+    }
+</style>
+
+<script>
+    let allRegions = [];
+    let currentRegionId = null;
+    let currentData = null;
+
+    // Загрузка списка регионов
+    async function loadRegions() {
+        try {
+            const response = await fetch('/api/regions/all');
+            const data = await response.json();
+            allRegions = data.regions || [];
+            if (allRegions.length === 0) {
+                document.getElementById('regionError').textContent = 'Регионы не найдены';
+            }
+        } catch (error) {
+            console.error(error);
+            document.getElementById('regionError').textContent = 'Ошибка загрузки регионов';
+        }
+    }
+
+    // Отображение подсказок
+    function showRegionSuggestions(query) {
+        const suggestionsDiv = document.getElementById('regionSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+
+        const filtered = allRegions.filter(r => 
+            r.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+
+        suggestionsDiv.innerHTML = filtered.map(r => `
+            <div class="region-suggestion" data-id="${r.id}" data-name="${r.name.replace(/'/g, "\\'")}">
+                ${r.name}
+            </div>
+        `).join('');
+        suggestionsDiv.style.display = 'block';
+
+        // Добавляем обработчики для каждого элемента
+        document.querySelectorAll('.region-suggestion').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.getAttribute('data-id'));
+                const name = item.getAttribute('data-name');
+                selectRegion(id, name);
+            });
+        });
+    }
+
+    // Выбор региона
+    function selectRegion(id, name) {
+        document.getElementById('regionInput').value = name;
+        document.getElementById('selectedRegionId').value = id;
+        document.getElementById('regionSuggestions').style.display = 'none';
+        document.getElementById('regionError').textContent = '';
+        currentRegionId = id;
+        loadRulesForRegion(id);
+        switchTab('general'); // при выборе региона показываем первую вкладку
+    }
+
+    // Обработка ввода в поле
+    function onRegionInput() {
+        const input = document.getElementById('regionInput');
+        const query = input.value;
+        const selectedId = document.getElementById('selectedRegionId').value;
+        
+        // Если текст не соответствует выбранному региону – сбрасываем выбор
+        if (selectedId) {
+            const selectedRegion = allRegions.find(r => r.id == selectedId);
+            if (!selectedRegion || selectedRegion.name !== query) {
+                document.getElementById('selectedRegionId').value = '';
+                currentRegionId = null;
+                document.getElementById('rulesContainer').style.display = 'none';
+            }
+        }
+        
+        if (query) {
+            showRegionSuggestions(query);
+        } else {
+            document.getElementById('regionSuggestions').style.display = 'none';
+        }
+    }
+
+    // Загрузка правил для выбранного региона
+    async function loadRulesForRegion(regionId) {
+        const container = document.getElementById('rulesContainer');
+        container.style.display = 'block';
+        // Показываем индикаторы загрузки
+        document.getElementById('generalRuleContent').innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+        document.getElementById('regionalRulesContent').innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+        document.getElementById('seasonalBansContent').innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+        document.getElementById('restrictedAreasContent').innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+        document.getElementById('dailyLimitsContent').innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+
+        try {
+            const response = await fetch(`/api/regions/${regionId}/rules`);
+            const data = await response.json();
+            if (!data.ok) throw new Error('Ошибка загрузки');
+            currentData = data;
+            currentRegionId = regionId;
+
+            renderGeneralRule(data.general_rule);
+            renderRegionalRules(data.regional_rules);
+            renderSeasonalBans(data.seasonal_bans);
+            renderRestrictedAreas(data.restricted_areas);
+            renderDailyLimits(data.daily_limits);
+        } catch (error) {
+            console.error(error);
+            document.getElementById('generalRuleContent').innerHTML = '<p style="color:var(--text-danger);">Не удалось загрузить правила</p>';
+        }
+    }
+
+    function renderGeneralRule(rule) {
+        const container = document.getElementById('generalRuleContent');
+        if (!rule) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Общие правила для этого региона не установлены.</p>';
+            return;
+        }
+        let html = '<div style="background:var(--bg-input); padding:16px; border-radius:8px;">';
+        if (rule.daily_limit_kg) html += `<p><strong>Суточный лимит вылова:</strong> ${rule.daily_limit_kg} кг</p>`;
+        if (rule.allowed_gear) html += `<p><strong>Разрешённые снасти:</strong> ${rule.allowed_gear}</p>`;
+        if (rule.prohibited_gear) html += `<p><strong>Запрещённые снасти:</strong> <span style="color:var(--text-danger);">${rule.prohibited_gear}</span></p>`;
+        if (rule.source) html += `<p><em>Источник: ${rule.source}</em></p>`;
+        if (rule.ban_start && rule.ban_end) {
+            const start = new Date(rule.ban_start).toLocaleDateString();
+            const end = new Date(rule.ban_end).toLocaleDateString();
+            html += `<p><strong>Период нерестового запрета:</strong> ${start} — ${end}</p>`;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function renderRegionalRules(rules) {
+        const container = document.getElementById('regionalRulesContent');
+        if (!rules || rules.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Правила по видам рыб не найдены.</p>';
+            return;
+        }
+        let tableHtml = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border-primary);">
+                            <th style="padding:8px; text-align:left;">Вид рыбы</th>
+                            <th style="padding:8px; text-align:center;">Мин. размер (см)</th>
+                            <th style="padding:8px; text-align:center;">Лимит (кг/сут)</th>
+                            <th style="padding:8px; text-align:center;">Лимит (шт/сут)</th>
+                            <th style="padding:8px; text-align:left;">Нерестовый запрет</th>
+                            <th style="padding:8px; text-align:left;">Запрещённые снасти</th>
+                            <th style="padding:8px; text-align:center;">Полный запрет</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        for (const rule of rules) {
+            const banPeriod = rule.ban_start && rule.ban_end
+                ? `${new Date(rule.ban_start).toLocaleDateString()} — ${new Date(rule.ban_end).toLocaleDateString()}`
+                : 'Нет';
+            const prohibitedGear = (rule.prohibited_gear || []).join(', ') || '—';
+            const isProhibited = rule.is_prohibited ? 'Да' : 'Нет';
+            const rowStyle = rule.is_prohibited ? 'background-color: var(--bg-rejection);' : '';
+            tableHtml += `
+                <tr style="border-bottom:1px solid var(--border-tag); ${rowStyle}">
+                    <td style="padding:8px;"><a href="/fish/${rule.fish_id}" style="color:var(--text-accent);">${rule.fish_name}</a></td>
+                    <td style="padding:8px; text-align:center;">${rule.min_size_cm || '—'}</td>
+                    <td style="padding:8px; text-align:center;">${rule.daily_limit_kg || '—'}</td>
+                    <td style="padding:8px; text-align:center;">${rule.daily_limit_pcs || '—'}</td>
+                    <td style="padding:8px;">${banPeriod}</td>
+                    <td style="padding:8px; color:var(--text-danger);">${prohibitedGear}</td>
+                    <td style="padding:8px; text-align:center;">${isProhibited}</td>
+                </tr>
+            `;
+        }
+        tableHtml += '</tbody></table></div>';
+        container.innerHTML = tableHtml;
+    }
+
+    function renderSeasonalBans(bans) {
+        const container = document.getElementById('seasonalBansContent');
+        if (!bans || bans.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Сезонные запреты не установлены.</p>';
+            return;
+        }
+        const today = new Date().toISOString().slice(0,10);
+        let html = '<ul style="padding-left:20px;">';
+        bans.forEach(ban => {
+            const start = ban.ban_start ? new Date(ban.ban_start).toLocaleDateString() : '?';
+            const end = ban.ban_end ? new Date(ban.ban_end).toLocaleDateString() : '?';
+            const isActive = ban.ban_start && ban.ban_end && today >= ban.ban_start && today <= ban.ban_end;
+            const activeClass = isActive ? ' style="color:var(--text-danger); font-weight:600;"' : '';
+            html += `<li${activeClass}>${ban.description} (${start} — ${end})${isActive ? ' — ДЕЙСТВУЕТ!' : ''}</li>`;
+        });
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function renderRestrictedAreas(areas) {
+        const container = document.getElementById('restrictedAreasContent');
+        if (!areas || areas.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Запретные зоны не установлены.</p>';
+            return;
+        }
+        let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse;">';
+        html += `<thead><tr style="border-bottom:2px solid var(--border-primary);">
+                    <th style="padding:8px;">Название</th>
+                    <th style="padding:8px;">Тип зоны</th>
+                    <th style="padding:8px;">Период ограничения</th>
+                 </table></thead><tbody>`;
+        areas.forEach(area => {
+            const period = area.restriction_start && area.restriction_end
+                ? `${new Date(area.restriction_start).toLocaleDateString()} — ${new Date(area.restriction_end).toLocaleDateString()}`
+                : 'Весь год';
+            html += `<tr style="border-bottom:1px solid var(--border-tag);">
+                        <td style="padding:8px;">${area.name}</td>
+                        <td style="padding:8px;">${area.area_type || '—'}</td>
+                        <td style="padding:8px;">${period}</td>
+                     </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    function renderDailyLimits(limits) {
+        const container = document.getElementById('dailyLimitsContent');
+        if (!limits || limits.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Суточные лимиты не установлены.</p>';
+            return;
+        }
+        let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse;">';
+        html += `<thead><tr style="border-bottom:2px solid var(--border-primary);">
+                    <th style="padding:8px;">Вид рыбы</th>
+                    <th style="padding:8px; text-align:center;">Лимит (кг)</th>
+                    <th style="padding:8px; text-align:center;">Лимит (шт)</th>
+                    <th style="padding:8px; text-align:center;">Мин. размер (см)</th>
+                    <th style="padding:8px; text-align:center;">Запрет на вылов</th>
+                 </tr></thead><tbody>`;
+        limits.forEach(limit => {
+            const isProhibited = limit.is_prohibited ? 'Да' : 'Нет';
+            html += `<tr style="border-bottom:1px solid var(--border-tag);">
+                        <td style="padding:8px;"><a href="/fish/${limit.fish_id}" style="color:var(--text-accent);">${limit.fish_name}</a></td>
+                        <td style="padding:8px; text-align:center;">${limit.limit_kg || '—'}</td>
+                        <td style="padding:8px; text-align:center;">${limit.limit_pcs || '—'}</td>
+                        <td style="padding:8px; text-align:center;">${limit.min_size_cm || '—'}</td>
+                        <td style="padding:8px; text-align:center;">${isProhibited}</td>
+                     </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    function switchTab(tabName) {
+        // Скрыть все вкладки
+        document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.style.color = 'var(--text-muted)';
+            btn.style.borderBottomColor = 'transparent';
+        });
+        // Показать выбранную
+        document.getElementById(`tab-${tabName}`).style.display = 'block';
+        const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+        if (activeBtn) {
+            activeBtn.style.color = 'var(--text-accent)';
+            activeBtn.style.borderBottomColor = 'var(--text-accent)';
+        }
+    }
+
+    // Скрытие подсказок при клике вне поля
+    document.addEventListener('click', function(e) {
+        const input = document.getElementById('regionInput');
+        const suggestions = document.getElementById('regionSuggestions');
+        if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+            suggestions.style.display = 'none';
+        }
+    });
+
+    // Обработка нажатия Enter
+    document.getElementById('regionInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const suggestions = document.getElementById('regionSuggestions');
+            const firstSuggestion = suggestions.querySelector('.region-suggestion');
+            if (firstSuggestion && suggestions.style.display === 'block') {
+                const id = parseInt(firstSuggestion.getAttribute('data-id'));
+                const name = firstSuggestion.getAttribute('data-name');
+                selectRegion(id, name);
+                e.preventDefault();
+            }
+        }
+    });
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRegions();
+        const regionInput = document.getElementById('regionInput');
+        regionInput.addEventListener('input', onRegionInput);
+    });
+</script>
+{% endblock %}

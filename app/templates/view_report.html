@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Отчёт — {{ report.waterbody.name }} — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 30px auto; padding: 0 20px;">
+    <a href="javascript:history.back()" class="back-link">Назад</a>
+
+    <div class="card" style="padding: 24px;">
+        <div style="display:flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h2 style="font-size:var(--font-size-2xl); color:var(--text-heading);">
+                    <a href="{{ url_for('main.waterbody_detail', id=report.waterbody.id) }}" style="color:var(--text-heading); text-decoration:underline;">{{ report.waterbody.name }}</a>
+                </h2>
+                <div style="font-size:var(--font-size-sm); color:var(--text-muted); margin-top:4px;">
+                    {{ report.user.full_name }} • {{ report.date.strftime('%d.%m.%Y') }}
+                </div>
+            </div>
+            <div>
+                {% if report.rating %}
+                    <div style="font-size:var(--font-size-base); color:var(--text-accent); text-align:right;">
+                        {% for i in range(report.rating) %}★{% endfor %}{% for i in range(5 - report.rating) %}☆{% endfor %}
+                    </div>
+                {% endif %}
+                <button onclick="copyToClipboard('{{ url_for('main.view_report', id=report.id, _external=True) }}')"
+                        class="submit-btn" style="width:auto; padding:6px 10px; font-size:var(--font-size-xs); margin-top:6px;">Поделиться</button>
+            </div>
+        </div>
+
+        <!-- Погодные условия -->
+        <div style="margin-top:20px; padding:12px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:6px; display:flex; flex-wrap:wrap; gap:16px; font-size:var(--font-size-sm); color:var(--text-muted);">
+            {% if report.weather_temp %}<span>{{ report.weather_temp }}°C</span>{% endif %}
+            {% if report.weather_pressure %}<span>{{ report.weather_pressure }} мм рт.ст.</span>{% endif %}
+            {% if report.weather_wind_dir or report.weather_wind_speed %}
+                <span>
+                    {% if report.weather_wind_dir %}{{ report.weather_wind_dir }}{% endif %}
+                    {% if report.weather_wind_speed %} {{ report.weather_wind_speed }} м/с{% endif %}
+                </span>
+            {% endif %}
+            {% if report.weather_clouds %}<span>{{ report.weather_clouds }}</span>{% endif %}
+        </div>
+
+        <!-- Снасти и наживки (с поддержкой eager loading) -->
+        <div style="margin-top:20px;">
+            <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:10px;">Снасти и наживки</div>
+
+            {% set report_gears = report.report_gears %}
+            {% if report_gears and report_gears|length > 0 %}
+                {% for rg in report_gears %}
+                    <div style="margin-bottom:10px; padding:10px 14px; background:var(--bg-input); border-left:3px solid var(--text-accent); border-radius:4px;">
+                        <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:10px;">
+                            <strong style="color:var(--text-accent); font-size:var(--font-size-sm);">{{ rg.gear_name }}</strong>
+                            {% set gear_baits = rg.baits if rg.baits is defined else [] %}
+                            {% if gear_baits and gear_baits|length > 0 %}
+                                <span style="color:var(--text-muted); font-size:12px;">→</span>
+                                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                                    {% for bait in gear_baits %}
+                                        <span class="fish-tag" style="font-size:12px; background:var(--bg-tag); margin:0;">{{ bait.bait_name }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span style="color:var(--text-muted); font-size:12px;">(наживки не указаны)</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div style="color:var(--text-muted); font-size:var(--font-size-sm); padding:8px 12px; background:var(--bg-input); border-radius:4px;">Снасти не указаны</div>
+            {% endif %}
+        </div>
+
+        <!-- Улов -->
+        {% if report.fish_caught %}
+            <div style="margin-top:20px;">
+                <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:10px;">Улов</div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:var(--font-size-sm);">
+                        <thead>
+                            <tr style="border-bottom:2px solid var(--border-primary);">
+                                <th style="padding:10px 8px; text-align:left; color:var(--text-accent); font-weight:600;">Вид рыбы</th>
+                                <th style="padding:10px 8px; text-align:center; color:var(--text-accent); font-weight:600;">Вес, кг</th>
+                                <th style="padding:10px 8px; text-align:center; color:var(--text-accent); font-weight:600;">Кол-во, шт</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set fish_data = report.fish_caught|from_json %}
+                            {% for item in fish_data %}
+                                <tr style="border-bottom:1px solid var(--border-tag);">
+                                    <td style="padding:10px 8px; text-align:left; color:var(--text-primary);">{{ item.name }}</td>
+                                    <td style="padding:10px 8px; text-align:center; color:var(--text-primary);">{{ item.kg }}</td>
+                                    <td style="padding:10px 8px; text-align:center; color:var(--text-primary);">{{ item.pcs }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Описание (Впечатления) -->
+        {% if report.description %}
+            <div style="margin-top:20px;">
+                <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:8px;">Впечатления</div>
+                <div style="color:var(--text-primary); font-size:var(--font-size-sm); line-height:1.7; padding:8px 0; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;">
+                    {{- report.description.strip()|replace('\n', '<br>')|safe -}}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Галерея изображений -->
+        {% if report.images and report.images|length > 0 %}
+            <div style="margin-top:20px;">
+                <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:12px;">Фотографии с рыбалки</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px;">
+                    {% for image in report.images %}
+                        <img src="{{ url_for('static', filename='uploads/reports/' + image.filename) }}"
+                             alt="{{ image.original_name }}"
+                             style="width:100%; height:160px; object-fit:cover; border-radius:6px; border:1px solid var(--border-tag); cursor: pointer;"
+                             onclick="openLightbox('{{ url_for('static', filename='uploads/reports/' + image.filename) }}')">
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div style="margin-top:20px;">
+                <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:8px;">Фотографии</div>
+                <div style="color:var(--text-muted); font-size:var(--font-size-sm); padding:8px 12px; background:var(--bg-input); border-radius:4px;">Фотографии не прикреплены</div>
+            </div>
+        {% endif %}
+
+        <!-- Комментарии -->
+        <div style="margin-top:24px; border-top:1px solid var(--border-tag); padding-top:20px;">
+            <div style="font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:1.5px; color:var(--text-accent); margin-bottom:12px;">Комментарии ({{ report.comments|length }})</div>
+
+            {% if report.comments %}
+                {% for c in report.comments %}
+                    <div style="padding:10px 12px; margin-bottom:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:6px; font-size:var(--font-size-sm);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                            <strong style="color:var(--text-heading);">{{ c.user.full_name }}</strong>
+                            <span style="color:var(--text-muted); font-size:var(--font-size-xs);">{{ c.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                        </div>
+                        <div style="color:var(--text-primary); line-height:1.6; white-space: pre-wrap; word-wrap: break-word;">{{ c.text }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div style="color:var(--text-muted); font-size:var(--font-size-sm); padding:12px; background:var(--bg-input); border-radius:6px; text-align:center;">
+                    Пока нет комментариев. Будьте первым!
+                </div>
+            {% endif %}
+
+            {% if current_user.is_authenticated %}
+                <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">
+                    <input type="text" placeholder="Напишите комментарий..." id="commentInput"
+                           style="flex:1; min-width:240px; padding:10px 12px; background:var(--bg-input); border:1px solid var(--border-input); border-radius:6px; color:var(--text-primary); font-size:var(--font-size-sm);">
+                    <button class="submit-btn" style="width:auto; padding:10px 18px; border-radius:6px;" onclick="postComment({{ report.id }})">Отправить</button>
+                </div>
+            {% else %}
+                <div style="color:var(--text-muted); font-size:var(--font-size-sm); margin-top:12px; padding:10px; background:var(--bg-input); border-radius:6px; text-align:center;">
+                    <a href="{{ url_for('main.login') }}" style="color:var(--text-accent);">Войдите</a>, чтобы оставлять комментарии.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function getCSRFToken() {
+        const csrfInput = document.querySelector('#csrfForm input[name="csrf_token"]');
+        return csrfInput ? csrfInput.value : '';
+    }
+
+    async function postComment(reportId) {
+        const input = document.getElementById('commentInput');
+        if (!input) return;
+        const text = (input.value || '').trim();
+        if (!text) {
+            alert('Напишите комментарий');
+            return;
+        }
+        try {
+            const csrfToken = getCSRFToken();
+            const res = await fetch(`/api/reports/${reportId}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ text }),
+                credentials: 'same-origin'
+            });
+            if (res.ok) {
+                location.reload();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Ошибка при отправке комментария');
+            }
+        } catch (e) {
+            console.error('Ошибка:', e);
+            alert('Ошибка соединения. Проверьте интернет-соединение.');
+        }
+    }
+
+    function setupLightbox() {
+        const lightbox = document.createElement('div');
+        lightbox.id = 'image-lightbox';
+        lightbox.style.cssText = `
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        `;
+        const content = document.createElement('div');
+        content.style.cssText = `
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            text-align: center;
+        `;
+        const img = document.createElement('img');
+        img.id = 'lightbox-img';
+        img.style.cssText = `
+            max-width: 100%;
+            max-height: 80vh;
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+        `;
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cssText = `
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            padding: 8px 16px;
+        `;
+        closeBtn.addEventListener('click', () => {
+            lightbox.style.display = 'none';
+        });
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) lightbox.style.display = 'none';
+        });
+        content.appendChild(img);
+        content.appendChild(closeBtn);
+        lightbox.appendChild(content);
+        document.body.appendChild(lightbox);
+    }
+
+    function openLightbox(imageSrc) {
+        const lightbox = document.getElementById('image-lightbox');
+        const img = document.getElementById('lightbox-img');
+        if (lightbox && img) {
+            img.src = imageSrc;
+            lightbox.style.display = 'flex';
+        }
+    }
+
+    window.copyToClipboard = function(text) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => alert('Ссылка скопирована!'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            alert('Ссылка скопирована!');
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', setupLightbox);
+</script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Управление отчётами — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Управление отчётами</h2>
+
+    <!-- Поиск по ID -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Быстрый поиск по ID</h3>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <input type="number" id="searchReportId" placeholder="Введите ID отчёта..." 
+                   style="flex:1; min-width:200px; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            <button onclick="searchReportById()" class="submit-btn" style="width:auto; padding:8px 20px;">Найти</button>
+            <button onclick="clearSearch()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Показать все</button>
+        </div>
+        <div id="searchResult" style="margin-top:10px; display:none;"></div>
+    </div>
+
+    <!-- Таблица всех отчётов -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;" id="allReportsPanel">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все отчёты ({{ reports|length }})</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:var(--font-size-sm);">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary); background:var(--bg-input);">
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">ID</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Водоём</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Автор</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Дата рыбалки</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Рейтинг</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Статус</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Дата создания</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="reportsTableBody">
+                    {% for r in reports %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" data-report-id="{{ r.id }}" id="report-row-{{ r.id }}">
+                        <td style="padding:8px; color:var(--text-muted); font-family:monospace; font-weight:600;">#{{ r.id }}</td>
+                        <td style="padding:8px; color:var(--text-primary);">
+                            <a href="{{ url_for('main.waterbody_detail', id=r.waterbody.id) }}" style="color:var(--text-accent); text-decoration:underline;">{{ r.waterbody.name }}</a>
+                        </td>
+                        <td style="padding:8px; color:var(--text-primary);">{{ r.user.full_name }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ r.date.strftime('%d.%m.%Y') }}</td>
+                        <td style="padding:8px; text-align:center;">
+                            {% if r.rating %}
+                                <span style="color:var(--text-accent); font-weight:700;">{{ r.rating }}/5</span>
+                            {% else %}
+                                <span style="color:var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:8px; text-align:center;">
+                            {% if r.is_approved %}
+                                <span style="color:var(--text-success); font-weight:700; background:var(--bg-flash-success); padding:2px 8px; border-radius:4px;">Одобрен</span>
+                            {% else %}
+                                <span style="color:var(--text-warning); font-weight:700; background:var(--bg-flash-info); padding:2px 8px; border-radius:4px;">На модерации</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:8px; color:var(--text-muted); font-size:11px;">{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="toggle_approval">
+                                    <input type="hidden" name="report_id" value="{{ r.id }}">
+                                    {% if r.is_approved %}
+                                        <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:10px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Вернуть</button>
+                                    {% else %}
+                                        <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:10px;">Одобрить</button>
+                                    {% endif %}
+                                </form>
+                                <a href="{{ url_for('main.view_report', id=r.id) }}" class="submit-btn" style="width:auto; padding:4px 10px; font-size:10px; text-decoration:none; display:inline-block;">Смотреть</a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить отчёт #{{ r.id }} навсегда? Это действие нельзя отменить!')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="report_id" value="{{ r.id }}">
+                                    <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:10px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);" aria-label="Удалить">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not reports %}
+            <div style="color:var(--text-muted); padding:20px; text-align:center;">Нет отчётов в базе данных.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function searchReportById() {
+        const id = document.getElementById('searchReportId').value;
+        if (!id) {
+            alert('Введите ID отчёта');
+            return;
+        }
+        
+        const targetRow = document.getElementById(`report-row-${id}`);
+        const searchResult = document.getElementById('searchResult');
+        
+        if (targetRow) {
+            // Прокрутка к найденной строке
+            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Подсветка строки
+            targetRow.style.backgroundColor = 'var(--bg-hover)';
+            targetRow.style.transition = 'background-color 0.3s';
+            setTimeout(() => {
+                targetRow.style.backgroundColor = '';
+            }, 3000);
+            
+            searchResult.style.display = 'block';
+            searchResult.innerHTML = `<div style="color:var(--text-success); padding:8px; background:var(--bg-flash-success); border-radius:4px;">Отчёт #${id} найден и выделен</div>`;
+            setTimeout(() => {
+                searchResult.style.display = 'none';
+            }, 3000);
+        } else {
+            searchResult.style.display = 'block';
+            searchResult.innerHTML = `<div style="color:var(--text-danger); padding:8px; background:var(--bg-rejection); border-radius:4px;">Отчёт с ID ${id} не найден</div>`;
+            setTimeout(() => {
+                searchResult.style.display = 'none';
+            }, 3000);
+        }
+    }
+    
+    function clearSearch() {
+        document.getElementById('searchReportId').value = '';
+        const searchResult = document.getElementById('searchResult');
+        searchResult.style.display = 'none';
+        // Сброс подсветки всех строк
+        document.querySelectorAll('#reportsTableBody tr').forEach(row => {
+            row.style.backgroundColor = '';
+        });
+    }
+</script>
+{% endblock %}

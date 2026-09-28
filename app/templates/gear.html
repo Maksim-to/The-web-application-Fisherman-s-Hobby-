@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Снасти — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 960px; margin: 0 auto; padding: 20px;">
+  <div class="panel" style="margin-bottom:16px; text-align: center;">
+    <div class="search-filter-bar" style="justify-content: center; max-width: 600px; margin: 0 auto;">
+      <input type="text" id="gearSearch" placeholder="Поиск по названию..." oninput="filterGear()" style="flex: 1; min-width: 300px; width: 100%;">
+    </div>
+  </div>
+
+  <div class="catalog-grid" id="gearGrid">
+    {% for g in gears %}
+      <a href="{{ url_for('main.gear_detail', id=g.id) }}" class="catalog-card" data-name="{{ g.name|lower }}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+          <div class="card-title">{{ g.name }}</div>
+          <div class="card-subtitle">{{ g.category or '' }}</div>
+        </div>
+        {% if g.description %}
+          <div class="card-info">{{ g.description[:120] }}{% if g.description|length > 120 %}...{% endif %}</div>
+        {% endif %}
+      </a>
+    {% else %}
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">
+        Снасти не найдены
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function filterGear() {
+  const q = (document.getElementById('gearSearch')?.value || '').toLowerCase();
+  document.querySelectorAll('#gearGrid .catalog-card').forEach(card => {
+    const name = card.dataset.name || '';
+    const matchName = !q || name.includes(q);
+    card.style.display = matchName ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

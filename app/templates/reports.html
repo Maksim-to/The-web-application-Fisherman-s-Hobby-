@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Отчёты — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 30px auto; padding: 0 20px;">
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="search-filter-bar" style="margin-bottom:0;">
+            <input type="text" id="reportSearch" placeholder="Название водоёма..." oninput="filterReports()" style="flex:2;">
+            <input type="date" id="reportDate" onchange="filterReports()" style="flex:1;">
+        </div>
+    </div>
+
+    <div id="reportsList">
+    {% for report in reports %}
+        <div class="report-item" data-name="{{ report.waterbody.name|lower }}" data-date="{{ report.date.strftime('%Y-%m-%d') }}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <a href="{{ url_for('main.view_report', id=report.id) }}" style="color:var(--text-heading); text-decoration:underline; font-weight:700; font-size:var(--font-size-md);">
+                        {{ report.waterbody.name }}
+                    </a>
+                    <span style="font-size:var(--font-size-sm); color:var(--text-muted); margin-left:10px;">
+                        {{ report.user.full_name }} • {{ report.date.strftime('%d.%m.%Y') }}
+                    </span>
+                </div>
+                {% if report.rating %}
+                    <div style="font-size:var(--font-size-sm); color:var(--text-accent);">
+                        {% for i in range(report.rating) %}★{% endfor %}{% for i in range(5 - report.rating) %}☆{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            {% if report.description %}
+                <p style="color:var(--text-primary); font-size:var(--font-size-sm); margin-top:8px; line-height:1.6; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;">
+                    {{- report.description.strip()[:200] -}}{% if report.description|length > 200 %}…{% endif %}
+                </p>
+            {% endif %}
+            <div style="margin-top:8px;">
+                <a href="{{ url_for('main.view_report', id=report.id) }}" class="submit-btn" style="width:auto; padding:6px 12px; text-decoration:none; font-size:var(--font-size-xs);">Читать далее</a>
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+
+    {% if not reports %}
+        <div style="color:var(--text-muted); font-size:var(--font-size-base); padding:20px; text-align:center;">Пока нет одобренных отчётов.</div>
+    {% endif %}
+
+    {% if pagination.pages > 1 %}
+        <div style="display:flex; gap:8px; justify-content:center; margin-top:20px;">
+            {% if pagination.has_prev %}
+                <a href="{{ url_for('main.reports_page', page=pagination.prev_num) }}" class="submit-btn" style="width:auto; padding:6px 12px; text-decoration:none;">← Назад</a>
+            {% endif %}
+            <span style="padding:8px; color:var(--text-muted); font-size:var(--font-size-sm);">Стр. {{ pagination.page }} из {{ pagination.pages }}</span>
+            {% if pagination.has_next %}
+                <a href="{{ url_for('main.reports_page', page=pagination.next_num) }}" class="submit-btn" style="width:auto; padding:6px 12px; text-decoration:none;">Вперёд →</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .report-item {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+    }
+    .report-item p {
+        word-break: break-all;
+        word-break: break-word;
+        hyphens: auto;
+    }
+</style>
+
+<script>
+function filterReports() {
+  const q = (document.getElementById('reportSearch')?.value || '').toLowerCase();
+  const dateFilter = document.getElementById('reportDate')?.value || '';
+  document.querySelectorAll('#reportsList .report-item').forEach(item => {
+    const name = item.dataset.name || '';
+    const date = item.dataset.date || '';
+    const matchName = !q || name.includes(q);
+    const matchDate = !dateFilter || date === dateFilter;
+    item.style.display = (matchName && matchDate) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

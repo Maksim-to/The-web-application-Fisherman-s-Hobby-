@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ fish.name }} — Виды рыб — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 0 auto; padding: 20px;">
+  <a href="{{ url_for('main.fish_catalog') }}" class="back-link">← Назад к видам рыб</a>
+
+  <div class="card" style="padding:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div style="font-size:28px; font-weight:800; color:var(--text-heading); word-wrap: break-word; overflow-wrap: break-word; white-space: normal; max-width: 70%;">{{ fish.name }}</div>
+      <div style="color:var(--text-muted); font-size:var(--font-size-sm); word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{{ fish.latin_name }}</div>
+    </div>
+
+    {% if fish.image %}
+      <div style="margin-top:14px;">
+        <img src="{{ url_for('static', filename=fish.image) }}" alt="{{ fish.name }}"
+             style="max-width:100%; max-height:300px; border-radius:4px; border:1px solid var(--border-tag);"
+             onerror="this.style.display='none'">
+      </div>
+    {% endif %}
+
+    <div style="margin-top:10px; color:var(--text-primary); font-size:var(--font-size-sm); display:flex; flex-wrap:wrap; gap:20px;">
+      <span>Оптимум: <strong style="color:var(--text-heading);">{{ fish.optimal_temp_min }}–{{ fish.optimal_temp_max }}°C</strong></span>
+      <span style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">Сезонность: <strong style="color:var(--text-heading);">{{ fish.seasonality }}</strong></span>
+    </div>
+  </div>
+
+  {% if fish.features and fish.features != 'Особенности не указаны' %}
+  <div class="panel" style="margin-top:16px;">
+    <h3>Особенности</h3>
+    <p style="color:var(--text-primary); font-size:var(--font-size-sm); line-height:1.7; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{{ fish.features }}</p>
+  </div>
+  {% endif %}
+
+  {% if fish.description and fish.description != 'Описание отсутствует' %}
+  <div class="panel" style="margin-top:16px;">
+    <h3>Описание</h3>
+    <p style="color:var(--text-primary); font-size:var(--font-size-sm); line-height:1.7; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{{ fish.description }}</p>
+  </div>
+  {% endif %}
+
+  <div class="panel" style="margin-top:16px;">
+    <h3>Водоёмы, где водится</h3>
+    {% if waterbodies %}
+      {% for wb in waterbodies %}
+        <a href="{{ url_for('main.waterbody_detail', id=wb.id) }}" style="text-decoration:none; color:inherit;">
+          <div class="popular-item">
+            <div class="name">{{ wb.name }}</div>
+            <div class="info">{{ wb.region.name }} • {{ wb.type }} • {{ wb.reports_count }} отчётов</div>
+          </div>
+        </a>
+      {% endfor %}
+    {% else %}
+      <div style="color:var(--text-muted); font-size:var(--font-size-sm);">Пока нет данных о водоёмах для этого вида.</div>
+    {% endif %}
+  </div>
+
+  {% if gears %}
+  <div class="panel" style="margin-top:16px;">
+    <h3>Рекомендуемые снасти</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      {% for g in gears %}
+        <a href="{{ url_for('main.gear_detail', id=g.id) }}" style="text-decoration:none;">
+          <span class="fish-tag">{{ g.name }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if baits %}
+  <div class="panel" style="margin-top:16px;">
+    <h3>Рекомендуемые наживки</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      {% for b in baits %}
+        <a href="{{ url_for('main.bait_detail', id=b.id) }}" style="text-decoration:none;">
+          <span class="fish-tag">{{ b.name }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

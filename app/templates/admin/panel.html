@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Админ-панель — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 30px auto; padding: 0 20px;">
+    <h2 style="font-size:var(--font-size-2xl); color:var(--text-heading); margin-bottom:20px;">Административная панель</h2>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:24px;">
+        <a href="{{ url_for('main.admin_users') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Пользователи</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Пользователи</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ users_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_waterbodies') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Водоемы</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Водоёмы</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ waterbodies_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_reports') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Отчеты</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Отчёты</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ reports_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_fish') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Рыбы</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Виды рыб</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ fish_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_gear') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Снасти</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Снасти</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ gear_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_bait') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Наживки</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Наживки</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ bait_count }}</div>
+            </div>
+        </a>
+        <a href="{{ url_for('main.admin_rules') }}" style="text-decoration:none;">
+            <div class="stat-card" style="text-align:center; padding:20px; background:var(--bg-panel); border:1px solid var(--border-tag); border-radius:8px; transition:0.2s;">
+                <div style="font-size:32px; margin-bottom:8px;">Правила</div>
+                <div style="font-size:var(--font-size-sm); color:var(--text-accent); font-weight:700;">Правила</div>
+                <div style="font-size:22px; color:var(--text-heading); margin-top:6px;">{{ rules_count }}</div>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

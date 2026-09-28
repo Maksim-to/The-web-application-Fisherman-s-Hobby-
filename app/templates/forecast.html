@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% block title %}Прогноз клёва — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; margin: 30px auto; padding: 0 20px;">
+    <div class="panel" style="margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="form-group">
+                <label>Водоём</label>
+                <div style="position: relative;">
+                    <input type="text" id="forecastWaterbodyInput" 
+                           placeholder="Начните вводить название водоёма..." 
+                           style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;"
+                           autocomplete="off">
+                    <div id="waterbodySuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:250px; overflow-y:auto; z-index:100; display:none;">
+                    </div>
+                </div>
+                <input type="hidden" id="forecastWaterbodyId" value="">
+                     <small style="color:var(--text-muted); display:block; margin-top:4px;">
+                     Начните вводить название или нажмите на поле для выбора из списка
+                 </small>
+            </div>
+            <div class="form-group">
+                <label>Дата</label>
+                {% set min_date = (datetime.now().date() - timedelta(days=7)).isoformat() %}
+                {% set max_date = (datetime.now().date() + timedelta(days=16)).isoformat() %}
+                {% set today = datetime.now().date().isoformat() %}
+                <input type="date" id="forecastDate" 
+                       min="{{ min_date }}"
+                       max="{{ max_date }}"
+                       value="{{ today }}"
+                       style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                     <small style="color:var(--text-muted); display:block; margin-top:4px;">
+                     Доступны даты с {{ (datetime.now().date() - timedelta(days=7)).strftime('%d.%m.%Y') }}
+                     по {{ (datetime.now().date() + timedelta(days=16)).strftime('%d.%m.%Y') }}
+                 </small>
+            </div>
+            <div class="form-group">
+                <label>Время суток</label>
+    <select id="forecastTime" style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                    <option value="morning">Утро (06:00)</option>
+                    <option value="day">День (13:00)</option>
+                    <option value="evening">Вечер (20:00)</option>
+                    <option value="night">Ночь (02:00)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Выбор снастей -->
+             <div class="form-group" style="margin-top:12px;">
+                 <label>Планируемые снасти</label>
+            <div style="display:flex; gap:8px;">
+                <div style="position: relative; flex:1;">
+                    <input type="text" id="gearSearch" placeholder="Начните вводить название снасти..." 
+                           style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                    <div id="gearSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;">
+                    </div>
+                </div>
+                 <button type="button" onclick="showAllGearsModal()" class="submit-btn" style="width:auto; padding:9px 14px; white-space:nowrap;">Все снасти</button>
+            </div>
+            <div id="selectedGears" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                <div style="color:var(--text-muted); font-size:12px;">Снасти не выбраны (будут показаны все подходящие виды)</div>
+            </div>
+        </div>
+
+        <!-- Выбор наживок -->
+             <div class="form-group" style="margin-top:12px;">
+                 <label>Планируемые наживки</label>
+            <div style="display:flex; gap:8px;">
+                <div style="position: relative; flex:1;">
+                    <input type="text" id="baitSearch" placeholder="Начните вводить название наживки..." 
+                           style="width:100%; padding:9px 10px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); font-size:13px;">
+                    <div id="baitSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none;">
+                    </div>
+                </div>
+                 <button type="button" onclick="showAllBaitsModal()" class="submit-btn" style="width:auto; padding:9px 14px; white-space:nowrap;">Все наживки</button>
+            </div>
+            <div id="selectedBaits" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                <div style="color:var(--text-muted); font-size:12px;">Наживки не выбраны (будут показаны все подходящие виды)</div>
+            </div>
+        </div>
+
+         <button onclick="loadForecast()" class="submit-btn" style="width:auto; padding:10px 24px; margin-top:12px;">
+             Рассчитать прогноз
+         </button>
+    </div>
+
+    <div id="forecastResult" style="color:var(--text-muted); padding:12px; background:var(--bg-panel); border:1px solid var(--border-primary);">
+        Выберите водоём и нажмите «Рассчитать прогноз»
+    </div>
+</div>
+
+<!-- Модальное окно для всех снастей -->
+<div id="allGearsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Все снасти</h3>
+            <button onclick="closeAllGearsModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div id="allGearsList" style="padding:16px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+</div>
+
+<!-- Модальное окно для всех наживок -->
+<div id="allBaitsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:500px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Все наживки</h3>
+            <button onclick="closeAllBaitsModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div id="allBaitsList" style="padding:16px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+</div>
+
+<style>
+    .gear-tag, .bait-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-radius: 16px;
+        font-size: 12px;
+    }
+    .gear-tag .remove, .bait-tag .remove {
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        line-height: 1;
+        opacity: 0.7;
+    }
+    .gear-tag .remove:hover, .bait-tag .remove:hover {
+        opacity: 1;
+    }
+    .suggestion-item {
+        padding: 8px 10px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-tag);
+        font-size: 13px;
+    }
+    .suggestion-item:hover {
+        background: var(--bg-hover);
+    }
+    .modal-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-tag);
+        border-radius: 20px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .modal-item:hover {
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-color: var(--btn-border);
+    }
+    .modal-item.selected {
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border-color: var(--btn-border);
+    }
+    .waterbody-suggestion-item {
+        padding: 8px 10px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-tag);
+        font-size: 13px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .waterbody-suggestion-item:hover {
+        background: var(--bg-hover);
+    }
+    .waterbody-suggestion-region {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+    /* Стиль скроллбара для выпадающих списков */
+    #waterbodySuggestions::-webkit-scrollbar,
+    #gearSuggestions::-webkit-scrollbar,
+    #baitSuggestions::-webkit-scrollbar {
+        width: 6px;
+    }
+    #waterbodySuggestions::-webkit-scrollbar-track,
+    #gearSuggestions::-webkit-scrollbar-track,
+    #baitSuggestions::-webkit-scrollbar-track {
+        background: var(--border-tag);
+        border-radius: 3px;
+    }
+    #waterbodySuggestions::-webkit-scrollbar-thumb,
+    #gearSuggestions::-webkit-scrollbar-thumb,
+    #baitSuggestions::-webkit-scrollbar-thumb {
+        background: var(--text-muted);
+        border-radius: 3px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+    let allGears = [];
+    let allBaits = [];
+    let selectedGears = [];
+    let selectedBaits = [];
+    let allWaterbodies = [];
+    
+    // ============ ЗАГРУЗКА СПИСКОВ ============
+    async function loadAllGearsAndBaits() {
+        try {
+            const gearRes = await fetch(`/api/gears/all`);
+            const gearData = await gearRes.json();
+            allGears = gearData.gears || [];
+            
+            const baitRes = await fetch(`/api/baits/all`);
+            const baitData = await baitRes.json();
+            allBaits = baitData.baits || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки снастей/наживок:', e);
+        }
+    }
+    
+    async function loadAllWaterbodies() {
+        try {
+            const res = await fetch(`/api/waterbodies/search?limit=200`);
+            const data = await res.json();
+            allWaterbodies = data.items || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки водоёмов:', e);
+        }
+    }
+    
+    // ============ ПОДСКАЗКИ ДЛЯ ВОДОЁМА ============
+    function showWaterbodySuggestions(query) {
+        const suggestionsDiv = document.getElementById('waterbodySuggestions');
+        
+        let filtered;
+        if (!query.trim()) {
+            // Если поле пустое - показываем все водоёмы
+            filtered = allWaterbodies;
+        } else {
+            filtered = allWaterbodies.filter(wb => 
+                wb.name.toLowerCase().includes(query.toLowerCase())
+            );
+        }
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(wb => `
+            <div class="waterbody-suggestion-item" onclick="selectWaterbody('${wb.id}', '${wb.name.replace(/'/g, "\\'")}')">
+                <span>${wb.name}</span>
+                <span class="waterbody-suggestion-region">${wb.region_name || ''}</span>
+            </div>
+        `).join('');
+        suggestionsDiv.style.display = 'block';
+    }
+    
+    function selectWaterbody(id, name) {
+        document.getElementById('forecastWaterbodyInput').value = name;
+        document.getElementById('forecastWaterbodyId').value = id;
+        document.getElementById('waterbodySuggestions').style.display = 'none';
+    }
+    
+    // ============ ОТОБРАЖЕНИЕ ПОДСКАЗОК ДЛЯ СНАСТЕЙ ============
+    function showGearSuggestions(query) {
+        const suggestionsDiv = document.getElementById('gearSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allGears.filter(gear => 
+            gear.toLowerCase().includes(query.toLowerCase()) && 
+            !selectedGears.includes(gear)
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(gear => 
+            `<div class="suggestion-item" onclick="selectGear('${gear.replace(/'/g, "\\'")}')">${gear}</div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+    }
+    
+    function selectGear(gear) {
+        if (!selectedGears.includes(gear)) {
+            selectedGears.push(gear);
+            renderSelectedGears();
+        }
+        document.getElementById('gearSearch').value = '';
+        document.getElementById('gearSuggestions').style.display = 'none';
+    }
+    
+    function removeGear(gear) {
+        selectedGears = selectedGears.filter(g => g !== gear);
+        renderSelectedGears();
+    }
+    
+    function renderSelectedGears() {
+        const container = document.getElementById('selectedGears');
+        if (selectedGears.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Снасти не выбраны (будут показаны все подходящие виды)</div>';
+            return;
+        }
+        container.innerHTML = selectedGears.map(gear => `
+            <div class="gear-tag">
+                ${gear}
+                <span class="remove" onclick="removeGear('${gear.replace(/'/g, "\\'")}')">✕</span>
+            </div>
+        `).join('');
+    }
+    
+    // ============ ОТОБРАЖЕНИЕ ПОДСКАЗОК ДЛЯ НАЖИВОК ============
+    function showBaitSuggestions(query) {
+        const suggestionsDiv = document.getElementById('baitSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allBaits.filter(bait => 
+            bait.toLowerCase().includes(query.toLowerCase()) && 
+            !selectedBaits.includes(bait)
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(bait => 
+            `<div class="suggestion-item" onclick="selectBait('${bait.replace(/'/g, "\\'")}')">${bait}</div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+    }
+    
+    function selectBait(bait) {
+        if (!selectedBaits.includes(bait)) {
+            selectedBaits.push(bait);
+            renderSelectedBaits();
+        }
+        document.getElementById('baitSearch').value = '';
+        document.getElementById('baitSuggestions').style.display = 'none';
+    }
+    
+    function removeBait(bait) {
+        selectedBaits = selectedBaits.filter(b => b !== bait);
+        renderSelectedBaits();
+    }
+    
+    function renderSelectedBaits() {
+        const container = document.getElementById('selectedBaits');
+        if (selectedBaits.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Наживки не выбраны (будут показаны все подходящие виды)</div>';
+            return;
+        }
+        container.innerHTML = selectedBaits.map(bait => `
+            <div class="bait-tag">
+                ${bait}
+                <span class="remove" onclick="removeBait('${bait.replace(/'/g, "\\'")}')">✕</span>
+            </div>
+        `).join('');
+    }
+    
+    // ============ МОДАЛЬНЫЕ ОКНА ============
+    function showAllGearsModal() {
+        const modal = document.getElementById('allGearsModal');
+        const listContainer = document.getElementById('allGearsList');
+        
+        listContainer.innerHTML = allGears.map(gear => `
+            <div class="modal-item ${selectedGears.includes(gear) ? 'selected' : ''}" onclick="toggleGearFromModal('${gear.replace(/'/g, "\\'")}')">
+                ${gear}
+            </div>
+        `).join('');
+        
+        modal.style.display = 'flex';
+    }
+    
+    function closeAllGearsModal() {
+        document.getElementById('allGearsModal').style.display = 'none';
+    }
+    
+    function toggleGearFromModal(gear) {
+        if (selectedGears.includes(gear)) {
+            selectedGears = selectedGears.filter(g => g !== gear);
+        } else {
+            selectedGears.push(gear);
+        }
+        renderSelectedGears();
+        
+        const listContainer = document.getElementById('allGearsList');
+        if (listContainer) {
+            listContainer.innerHTML = allGears.map(g => `
+                <div class="modal-item ${selectedGears.includes(g) ? 'selected' : ''}" onclick="toggleGearFromModal('${g.replace(/'/g, "\\'")}')">
+                    ${g}
+                </div>
+            `).join('');
+        }
+    }
+    
+    function showAllBaitsModal() {
+        const modal = document.getElementById('allBaitsModal');
+        const listContainer = document.getElementById('allBaitsList');
+        
+        listContainer.innerHTML = allBaits.map(bait => `
+            <div class="modal-item ${selectedBaits.includes(bait) ? 'selected' : ''}" onclick="toggleBaitFromModal('${bait.replace(/'/g, "\\'")}')">
+                ${bait}
+            </div>
+        `).join('');
+        
+        modal.style.display = 'flex';
+    }
+    
+    function closeAllBaitsModal() {
+        document.getElementById('allBaitsModal').style.display = 'none';
+    }
+    
+    function toggleBaitFromModal(bait) {
+        if (selectedBaits.includes(bait)) {
+            selectedBaits = selectedBaits.filter(b => b !== bait);
+        } else {
+            selectedBaits.push(bait);
+        }
+        renderSelectedBaits();
+        
+        const listContainer = document.getElementById('allBaitsList');
+        if (listContainer) {
+            listContainer.innerHTML = allBaits.map(b => `
+                <div class="modal-item ${selectedBaits.includes(b) ? 'selected' : ''}" onclick="toggleBaitFromModal('${b.replace(/'/g, "\\'")}')">
+                    ${b}
+                </div>
+            `).join('');
+        }
+    }
+    
+    // ============ ЗАГРУЗКА ПРОГНОЗА ============
+    async function loadForecast() {
+        const waterbodyId = document.getElementById('forecastWaterbodyId')?.value;
+        const targetDate = document.getElementById('forecastDate')?.value;
+        const timeOfDay = document.getElementById('forecastTime')?.value || 'morning';
+        
+        const box = document.getElementById('forecastResult');
+        
+        if (!waterbodyId) { 
+            box.innerHTML = '<div style="color:var(--text-danger);">Выберите водоём</div>'; 
+            return; 
+        }
+        
+        box.innerHTML = '<div style="color:var(--text-muted);">Загрузка прогноза…</div>';
+        
+        try {
+            const params = new URLSearchParams({ 
+                date: targetDate, 
+                time: timeOfDay,
+                gears: selectedGears.join(','),
+                baits: selectedBaits.join(',')
+            });
+            const res = await fetch(`/api/waterbodies/${waterbodyId}/forecast?${params}`, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            box.innerHTML = data.html || '<div style="color:var(--text-muted);">Данные прогноза недоступны</div>';
+        } catch (e) {
+            box.innerHTML = '<div style="color:var(--text-danger);">Ошибка загрузки прогноза</div>';
+        }
+    }
+    
+    // ============ ОБРАБОТЧИКИ СОБЫТИЙ ============
+    document.getElementById('forecastWaterbodyInput')?.addEventListener('input', (e) => {
+        showWaterbodySuggestions(e.target.value);
+    });
+    
+    document.getElementById('forecastWaterbodyInput')?.addEventListener('focus', (e) => {
+        showWaterbodySuggestions(e.target.value);
+    });
+    
+    document.getElementById('gearSearch')?.addEventListener('input', (e) => {
+        showGearSuggestions(e.target.value);
+    });
+    
+    document.getElementById('baitSearch')?.addEventListener('input', (e) => {
+        showBaitSuggestions(e.target.value);
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#forecastWaterbodyInput') && !e.target.closest('#waterbodySuggestions')) {
+            const suggestions = document.getElementById('waterbodySuggestions');
+            if (suggestions) suggestions.style.display = 'none';
+        }
+        if (!e.target.closest('#gearSearch') && !e.target.closest('#gearSuggestions')) {
+            const suggestions = document.getElementById('gearSuggestions');
+            if (suggestions) suggestions.style.display = 'none';
+        }
+        if (!e.target.closest('#baitSearch') && !e.target.closest('#baitSuggestions')) {
+            const suggestions = document.getElementById('baitSuggestions');
+            if (suggestions) suggestions.style.display = 'none';
+        }
+    });
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAllWaterbodies();
+        loadAllGearsAndBaits();
+        renderSelectedGears();
+        renderSelectedBaits();
+    });
+</script>
+{% endblock %}

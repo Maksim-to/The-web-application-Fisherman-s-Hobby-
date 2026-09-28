@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Рыболов-любитель — Главная{% endblock %}
+
+{% block extra_head %}
+  <!-- Яндекс.Карты API 2.1 -->
+  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&mode=release" type="text/javascript"></script>
+  <style>
+    #map { width: 100%; height: 100%; }
+    .results-panel { margin-top: 12px; }
+    .result-item { padding: 10px 0; border-bottom: 1px solid var(--border-tag); cursor: pointer; transition: 0.2s; }
+    .result-item:hover { padding-left: 4px; color: var(--text-heading); }
+    .result-item .name { font-weight: 600; font-size: 13px; }
+    .result-item .info { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .result-item .history-badge {
+        display: inline-block;
+        font-size: 9px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        padding: 1px 6px;
+        margin-left: 6px;
+        border-radius: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .ymaps-2-1-79-copyright__wrap { display: none !important; }
+    .history-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .history-label .clear-btn {
+        font-size: 10px;
+        color: var(--text-accent);
+        cursor: pointer;
+        text-decoration: underline;
+        background: none;
+        border: none;
+        padding: 0;
+    }
+    .history-label .clear-btn:hover {
+        color: var(--text-link-hover);
+    }
+    
+    link[rel="icon"] {
+        display: none;
+    }
+    
+    /* ============ ТЁМНАЯ ТЕМА КАРТЫ ЧЕРЕЗ ИНВЕРСИЮ ============ */
+    html.dark-theme .ymaps-2-1-79-map {
+        filter: invert(0.9) hue-rotate(180deg) brightness(0.95) contrast(1.05) !important;
+    }
+    
+    /* Возвращаем нормальные цвета для балунов, чтобы текст был читаем */
+    html.dark-theme .ymaps-2-1-79-balloon,
+    html.dark-theme .ymaps-2-1-79-balloon__content,
+    html.dark-theme .ymaps-2-1-79-balloon_layout_normal,
+    html.dark-theme .ymaps-2-1-79-cluster__content,
+    html.dark-theme .ymaps-2-1-79-copyright {
+        filter: invert(1) hue-rotate(180deg) brightness(1.05) !important;
+        background-color: #2d3a2e !important;
+    }
+    
+    /* Затемняем кластеры */
+    html.dark-theme .ymaps-2-1-79-cluster__content {
+        background-color: #1a1f1c !important;
+        color: #c5cdc2 !important;
+    }
+  </style>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'></text></svg>">
+{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div class="sidebar">
+        <div class="panel search-box">
+            <h3>Поиск водоёма</h3>
+            <form onsubmit="return false;">
+                <input type="text" id="q" name="q" placeholder="Название водоёма...">
+                <select id="region" name="region">
+                    <option value="">Все регионы</option>
+                    {% for region in regions %}
+                        <option value="{{ region.id }}">{{ region.name }}</option>
+                    {% endfor %}
+                </select>
+                <select id="fish" name="fish">
+                    <option value="">Все виды рыб</option>
+                    {% for f in fish_species %}
+                      <option value="{{ f.id }}">{{ f.name }}</option>
+                    {% endfor %}
+                </select>
+                <select id="type" name="type">
+                    <option value="">Все типы</option>
+                    <option value="река">Река</option>
+                    <option value="озеро">Озеро</option>
+                    <option value="пруд">Пруд</option>
+                    <option value="водохранилище">Водохранилище</option>
+                </select>
+            </form>
+            <div class="results-panel">
+                <div id="resultsHeader" style="font-size:11px; color: var(--text-muted); margin-bottom:6px;">Все водоёмы</div>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="map-area">
+        <div id="map"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+    let map = null;
+    let cluster = null;
+    let markersById = new Map();
+
+    // ============ ИСТОРИЯ ПОИСКА (localStorage) ============
+    const HISTORY_KEY = 'fisher-search-history';
+    const MAX_HISTORY = 5;
+
+    function getHistory() {
+        try {
+            const raw = localStorage.getItem(HISTORY_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveHistory(ids) {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(ids.slice(0, MAX_HISTORY)));
+    }
+
+    function addToHistory(id) {
+        let history = getHistory();
+        history = history.filter(h => h !== id);
+        history.unshift(id);
+        history = history.slice(0, MAX_HISTORY);
+        saveHistory(history);
+    }
+
+    function clearHistory() {
+        localStorage.removeItem(HISTORY_KEY);
+        updateListOnly();
+    }
+
+    // ============ ЗАГРУЗКА ИСТОРИИ ИЗ API ============
+    async function loadHistoryItems() {
+        const history = getHistory();
+        if (!history.length) return [];
+
+        try {
+            const res = await fetch(`/api/waterbodies/history?ids=${history.join(',')}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.items || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // ============ ОСНОВНАЯ ЛОГИКА ============
+    function hasActiveFilters() {
+        const q = ($("#q")?.value || "").trim();
+        const region = $("#region")?.value || "";
+        const fish = $("#fish")?.value || "";
+        const type = $("#type")?.value || "";
+        return !!(q || region || fish || type);
+    }
+
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+    function debounce(fn, ms) {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), ms);
+        };
+    }
+
+    async function apiGet(url) {
+        const res = await fetch(url, { headers: { "Accept": "application/json" } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    }
+
+    function stars(rating) {
+        const r = Math.max(0, Math.min(5, Math.round((rating || 0) * 2) / 2));
+        const full = Math.floor(r);
+        let s = "";
+        for (let i = 0; i < full; i++) s += "★";
+        for (let i = full; i < 5; i++) s += "☆";
+        return s;
+    }
+
+    function renderList(items, historyIds) {
+        const box = $("#resultsList");
+        if (!box) return;
+        if (!items.length) {
+            box.innerHTML = `<div class="muted" style="padding:10px; color: var(--text-muted);">Ничего не найдено</div>`;
+            return;
+        }
+        box.innerHTML = items.map(wb => {
+            const cnt = typeof wb.reports_count === "number" ? ` • ${wb.reports_count} отчётов` : "";
+            const isHistory = historyIds && historyIds.includes(wb.id);
+            const historyBadge = isHistory ? '<span class="history-badge">Просмотрен</span>' : '';
+            return `
+                <div class="result-item" data-wb-id="${wb.id}">
+                    <div class="name">${wb.name}${historyBadge}</div>
+                    <div class="info">${(wb.region_name || "")} • ${wb.type || ""}${cnt}</div>
+                </div>
+            `;
+        }).join("");
+
+        $$(".result-item", box).forEach(el => {
+            el.addEventListener("click", () => {
+                const id = parseInt(el.getAttribute("data-wb-id"), 10);
+                addToHistory(id);
+                focusWaterbody(id);
+            });
+        });
+    }
+
+    // ============ МАРКЕРЫ ============
+    function rebuildMarkers(items) {
+        if (!map || !cluster) return;
+        cluster.removeAll();
+        markersById.clear();
+        
+        items.forEach(wb => {
+            if (typeof wb.latitude !== "number" || typeof wb.longitude !== "number") return;
+            const coords = [wb.latitude, wb.longitude];
+
+            const placemark = new ymaps.Placemark(coords, {
+                balloonContentHeader: `<div style="font-weight:700; color:#1a1f1c; font-size:14px;">${wb.name}</div>`,
+                balloonContentBody: `
+                    <div style="font-size:12px; color:#2d3a2e; margin-bottom:6px;">
+                        ${wb.type || ""}${wb.region_name ? " • " + wb.region_name : ""}
+                    </div>
+                    <div style="font-size:12px; color:#4a6b3a; margin-bottom:10px;">
+                        ${stars(wb.rating)} <span style="color:#6b7a64; font-size:11px;">(${(wb.rating ?? 0).toFixed ? (wb.rating).toFixed(1) : (wb.rating || 0)})</span>
+                    </div>
+                    <a style="display:inline-block; width:auto; padding:7px 10px; text-decoration:none; color:#fff; background:#4a6b3a; border:1px solid #5a8b4a; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; cursor:pointer;" href="/waterbody/${wb.id}">Подробнее</a>
+                `,
+                balloonContentFooter: `<div style="font-size:10px; color:#8a9a82; margin-top:6px;">© Рыболов-любитель</div>`
+            }, {
+                preset: 'islands#greenIcon',
+                balloonPanelMaxMapArea: 0,
+            });
+
+            markersById.set(wb.id, placemark);
+            cluster.add(placemark);
+        });
+    }
+
+    function focusWaterbody(id) {
+        if (!map) return;
+        const pm = markersById.get(id);
+        if (pm) {
+            const coords = pm.geometry.getCoordinates();
+            map.setCenter(coords, Math.max(map.getZoom(), 10), { duration: 400 });
+            pm.balloon.open();
+        }
+    }
+
+    // Загрузка данных для КАРТЫ (фильтруется только если есть активные фильтры)
+    async function updateMap() {
+        const hasFilters = hasActiveFilters();
+        
+        if (!hasFilters) {
+            // Нет фильтров - показываем все водоемы
+            try {
+                const data = await apiGet('/api/waterbodies/search?limit=200');
+                rebuildMarkers(data.items || []);
+            } catch (e) {
+                console.warn('Ошибка загрузки всех водоёмов для карты:', e);
+            }
+        } else {
+            // Есть фильтры - показываем только отфильтрованные водоемы
+            const q = ($("#q")?.value || "").trim();
+            const region = $("#region")?.value || "";
+            const fish = $("#fish")?.value || "";
+            const type = $("#type")?.value || "";
+            const url = `/api/waterbodies/search?q=${encodeURIComponent(q)}&region=${encodeURIComponent(region)}&fish=${encodeURIComponent(fish)}&type=${encodeURIComponent(type)}`;
+            try {
+                const data = await apiGet(url);
+                rebuildMarkers(data.items || []);
+            } catch (e) {
+                console.warn('Ошибка загрузки отфильтрованных водоёмов для карты:', e);
+            }
+        }
+    }
+
+    // Загрузка данных для СПИСКА (история ИЛИ результаты поиска)
+    async function updateListOnly() {
+        const hasFilters = hasActiveFilters();
+        const history = getHistory();
+        
+        if (hasFilters) {
+            // Есть фильтры - показываем результаты поиска в списке
+            const q = ($("#q")?.value || "").trim();
+            const region = $("#region")?.value || "";
+            const fish = $("#fish")?.value || "";
+            const type = $("#type")?.value || "";
+            const url = `/api/waterbodies/search?q=${encodeURIComponent(q)}&region=${encodeURIComponent(region)}&fish=${encodeURIComponent(fish)}&type=${encodeURIComponent(type)}`;
+            try {
+                const data = await apiGet(url);
+                renderList(data.items || [], history);
+                $("#resultsHeader").textContent = 'Результаты поиска';
+            } catch (e) {
+                $("#resultsList").innerHTML = '<div style="padding:10px; color: var(--text-muted);">Ошибка загрузки</div>';
+            }
+        } else {
+            // Нет фильтров - показываем историю или все водоемы
+            if (history.length > 0) {
+                const historyItems = await loadHistoryItems();
+                renderList(historyItems, history);
+                $("#resultsHeader").innerHTML = 'История поиска <button class="clear-btn" onclick="clearHistory()">очистить</button>';
+            } else {
+                try {
+                    const data = await apiGet('/api/waterbodies/search?limit=200');
+                    renderList(data.items || [], []);
+                    $("#resultsHeader").textContent = 'Все водоёмы';
+                } catch (e) {
+                    $("#resultsList").innerHTML = '<div style="padding:10px; color: var(--text-muted);">Ошибка загрузки</div>';
+                }
+            }
+        }
+    }
+
+    // Обновление всего (карта + список)
+    async function refreshAll() {
+        await updateMap();
+        await updateListOnly();
+    }
+
+    // ============ СОЗДАНИЕ КАРТЫ ============
+    async function initMap() {
+        if (typeof ymaps === "undefined") {
+            setTimeout(initMap, 500);
+            return;
+        }
+        
+        await new Promise(resolve => ymaps.ready(resolve));
+        
+        map = new ymaps.Map("map", {
+            center: [58.0, 60.0],
+            zoom: 5,
+            controls: ['zoomControl']
+        }, {
+            suppressMapOpenBlock: true
+        });
+
+        cluster = new ymaps.Clusterer({
+            preset: 'islands#greenClusterIcons',
+            groupByCoordinates: false,
+            clusterDisableClickZoom: true,
+            clusterBalloonContentLayout: 'cluster#balloonCarousel',
+        });
+        map.geoObjects.add(cluster);
+        
+        // Загружаем начальные данные
+        await refreshAll();
+    }
+
+    // ============ ИНИЦИАЛИЗАЦИЯ ============
+    async function start() {
+        await initMap();
+        
+        const doRefresh = debounce(() => refreshAll().catch(() => {}), 300);
+        ["q", "region", "fish", "type"].forEach(id => {
+            const el = $("#" + id);
+            if (!el) return;
+            el.addEventListener("input", doRefresh);
+            el.addEventListener("change", doRefresh);
+        });
+    }
+
+    // Запуск
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => start());
+    } else {
+        start();
+    }
+</script>
+{% endblock %}

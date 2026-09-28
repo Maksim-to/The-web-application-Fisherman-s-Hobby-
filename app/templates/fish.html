@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Виды рыб — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 960px; margin: 0 auto; padding: 20px;">
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="search-filter-bar">
+      <input type="text" id="fishSearch" placeholder="Название рыбы..." oninput="filterFish()" style="flex:2;">
+      <select id="fishTemp" onchange="filterFish()">
+        <option value="">Все температуры</option>
+        <option value="cold">Холодноводные (&lt;12°C)</option>
+        <option value="mid">Средние (12–18°C)</option>
+        <option value="warm">Тепловодные (&gt;18°C)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="catalog-grid" id="fishGrid">
+    {% for f in fish %}
+      <a href="{{ url_for('main.fish_detail', id=f.id) }}" class="catalog-card"
+         data-name="{{ f.name|lower }}" data-tmin="{{ f.optimal_temp_min }}" data-tmax="{{ f.optimal_temp_max }}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+          <div class="card-title">{{ f.name }}</div>
+          <div class="card-subtitle">{{ f.latin_name }}</div>
+        </div>
+        <div class="card-info">Оптимум: {{ f.optimal_temp_min }}–{{ f.optimal_temp_max }}°C</div>
+        {% if f.seasonality and f.seasonality != 'Не указана' %}
+          <div class="card-info" style="margin-top:4px;">{{ f.seasonality[:60] }}{% if f.seasonality|length > 60 %}...{% endif %}</div>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function filterFish() {
+  const q = (document.getElementById('fishSearch')?.value || '').toLowerCase();
+  const temp = document.getElementById('fishTemp')?.value || '';
+  document.querySelectorAll('#fishGrid .catalog-card').forEach(card => {
+    const name = card.dataset.name || '';
+    const tmin = parseFloat(card.dataset.tmin) || 0;
+    const tmax = parseFloat(card.dataset.tmax) || 99;
+    const matchName = !q || name.includes(q);
+    let matchTemp = true;
+    if (temp === 'cold') matchTemp = tmax <= 12;
+    else if (temp === 'mid') matchTemp = tmin >= 12 && tmax <= 18;
+    else if (temp === 'warm') matchTemp = tmin >= 18;
+    card.style.display = (matchName && matchTemp) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

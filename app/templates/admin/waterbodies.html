@@ -1,0 +1,843 @@
+{% extends "base.html" %}
+{% block title %}Управление водоёмами — Админ{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1400px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('main.admin_panel') }}" class="back-link" style="color:var(--text-accent);">← Админ-панель</a>
+    <h2 style="font-size:var(--font-size-xl); color:var(--text-heading); margin-bottom:16px;">Управление водоёмами</h2>
+
+    <!-- Форма создания / редактирования -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 id="wbFormTitle" style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Добавить водоём</h3>
+        <form method="POST" id="wbForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" id="wbAction" value="create">
+            <input type="hidden" name="wb_id" id="wbId" value="">
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:15px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Название <span class="required">*</span></label>
+                    <input type="text" name="name" id="wbName" required 
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Тип <span class="required">*</span></label>
+                    <select name="type" id="wbType" required style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <option value="">— Выберите тип —</option>
+                        <option value="река">Река</option>
+                        <option value="озеро">Озеро</option>
+                        <option value="пруд">Пруд</option>
+                        <option value="водохранилище">Водохранилище</option>
+                        <option value="залив">Залив</option>
+                        <option value="море">Море</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Регион <span class="required">*</span></label>
+                    <div style="position: relative;">
+                        <input type="text" id="regionSearch" placeholder="Начните вводить название региона..." 
+                               style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <div id="regionSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none; border-radius:0 0 4px 4px;">
+                        </div>
+                    </div>
+                    <input type="hidden" name="region_id" id="wbRegion" required>
+                    <div id="region-error" style="color:var(--text-danger); font-size:11px; margin-top:4px;"></div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Широта</label>
+                    <input type="number" name="latitude" id="wbLat" step="0.0001" placeholder="Например: 55.75"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Долгота</label>
+                    <input type="number" name="longitude" id="wbLon" step="0.0001" placeholder="Например: 37.62"
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Площадь</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" name="area_value" id="wbAreaValue" step="0.01" placeholder="0.00"
+                           style="flex:2; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <select name="area_unit" id="wbAreaUnit" style="flex:1; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <option value="km²">км²</option>
+                        <option value="m²">м²</option>
+                        <option value="га">га</option>
+                    </select>
+                </div>
+                <input type="hidden" name="area" id="wbArea">
+            </div>
+        </div>
+
+        <!-- Фоновое изображение -->
+        <div class="form-group" style="margin-top:10px;">
+            <label>Фоновое изображение (заголовок)</label>
+            <input type="file" name="cover_image" id="coverImageInput" accept="image/*">
+            <div id="currentCoverImagePreview" style="margin-top:5px;"></div>
+            <small style="color:var(--text-muted);">Рекомендуемый размер: ширина 800-1200px, соотношение 3:1</small>
+        </div>
+
+        <!-- Видовой состав рыб -->
+            <div class="form-group" style="margin-top:10px;">
+                <label>Видовой состав рыб</label>
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                    <div style="position: relative; flex:1;">
+                        <input type="text" id="fishSearch" placeholder="Начните вводить название рыбы..." 
+                               style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                        <div id="fishSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none; border-radius:0 0 4px 4px;">
+                        </div>
+                    </div>
+                    <button type="button" onclick="showAllFishModal()" class="submit-btn" style="width:auto; padding:8px 14px; white-space:nowrap;">Все рыбы</button>
+                </div>
+                <div id="selectedFishList" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; min-height:50px; padding:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:4px;">
+                    <div style="color:var(--text-muted); font-size:12px;">Рыбы не выбраны</div>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-top:10px;">
+                <label>Описание</label>
+                <textarea name="description" id="wbDesc" rows="3" placeholder="Подробное описание водоёма..."
+                          style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div class="form-group" style="margin-top:10px;">
+                <label>Информация о доступе</label>
+                <textarea name="access_info" id="wbAccess" rows="2" placeholder="Как добраться, есть ли подъезд, парковка..."
+                          style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div class="form-group" style="margin-top:10px;">
+                <label>Инфраструктура</label>
+                <textarea name="infrastructure" id="wbInfrastructure" rows="2" placeholder="Базы отдыха, кемпинги, магазины, прокат лодок..."
+                          style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button type="submit" class="submit-btn" id="wbSubmitBtn" style="width:auto; padding:8px 20px;">Добавить</button>
+                <button type="button" class="submit-btn" id="wbCancelBtn" onclick="cancelWbEdit()" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger); display:none;">Отмена</button>
+            </div>
+            <div id="form-errors" style="color:var(--text-danger); margin-top:10px; font-size:12px;"></div>
+        </form>
+    </div>
+
+    <!-- Панель поиска и фильтрации -->
+    <div class="panel" style="margin-bottom:16px; background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+            <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Поиск и фильтрация</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:15px; margin-bottom:15px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Поиск по названию</label>
+                <input type="text" id="searchWaterbodyName" placeholder="Введите название водоёма..." 
+                       style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Фильтр по типу</label>
+                <select id="filterType" style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <option value="">Все типы</option>
+                    <option value="река">Река</option>
+                    <option value="озеро">Озеро</option>
+                    <option value="пруд">Пруд</option>
+                    <option value="водохранилище">Водохранилище</option>
+                    <option value="залив">Залив</option>
+                    <option value="море">Море</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Фильтр по региону</label>
+                <div style="position: relative;">
+                    <input type="text" id="filterRegionSearch" placeholder="Начните вводить название региона..." 
+                           style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <div id="filterRegionSuggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--bg-panel); border:1px solid var(--border-input); border-top:none; max-height:200px; overflow-y:auto; z-index:100; display:none; border-radius:0 0 4px 4px;">
+                    </div>
+                </div>
+                <input type="hidden" id="filterRegionId" value="">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Сортировка по рейтингу</label>
+                <select id="sortRating" style="width:100%; padding:8px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+                    <option value="">Без сортировки</option>
+                    <option value="desc">Сначала высокие (↓)</option>
+                    <option value="asc">Сначала низкие (↑)</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="applyFilters()" class="submit-btn" style="width:auto; padding:8px 20px;">Применить фильтры</button>
+            <button onclick="clearFilters()" class="submit-btn" style="width:auto; padding:8px 20px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Сбросить</button>
+        </div>
+        <div id="filterStats" style="margin-top:10px; font-size:12px; color:var(--text-muted);"></div>
+    </div>
+
+    <!-- Таблица водоёмов -->
+    <div class="panel" style="background:var(--bg-panel); border:1px solid var(--border-primary); border-radius:8px; padding:20px;">
+        <h3 style="color:var(--text-accent); font-size:var(--font-size-base); margin-bottom:12px;">Все водоёмы (<span id="totalCount">{{ waterbodies|length }}</span>)</h3>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-primary);">
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Название</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Тип</th>
+                        <th style="padding:10px 8px; text-align:left; color:var(--text-accent);">Регион</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Рыб</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Отчётов</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Рейтинг</th>
+                        <th style="padding:10px 8px; text-align:center; color:var(--text-accent);">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="waterbodiesTableBody">
+                    {% for wb in waterbodies %}
+                    <tr style="border-bottom:1px solid var(--border-tag);" id="wb-row-{{ wb.id }}" data-wb-id="{{ wb.id }}"
+                        data-name="{{ wb.name }}" data-type="{{ wb.type }}" data-region-id="{{ wb.region_id }}" data-region-name="{{ wb.region.name if wb.region else '' }}" data-rating="{{ wb.rating }}">
+                        <td style="padding:8px; color:var(--text-primary); font-weight:600;">{{ wb.name }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ wb.type }}</td>
+                        <td style="padding:8px; color:var(--text-muted);">{{ wb.region.name if wb.region else '—' }}</td>
+                        <td style="padding:8px; text-align:center; color:var(--text-muted);" class="fish-count-cell" data-wb-id="{{ wb.id }}">
+                            <span class="fish-count-value">—</span>
+                        </td>
+                        <td style="padding:8px; text-align:center; color:var(--text-muted);">{{ wb.reports_count }}</td>
+                        <td style="padding:8px; text-align:center; color:var(--text-accent); font-weight:700;" class="rating-cell">{{ wb.rating }}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                                <button type="button" onclick='editWb({{ wb.id }}, `{{ wb.name }}`, `{{ wb.type }}`, {{ wb.region_id }}, `{{ wb.region.name if wb.region else "" }}`, {{ wb.latitude|default('null') }}, {{ wb.longitude|default('null') }}, `{{ wb.area|default('') }}`, `{{ wb.access_info|default('')|replace('`', '\\`')|safe }}`, `{{ wb.infrastructure|default('')|replace('`', '\\`')|safe }}`, `{{ wb.description|default('')|replace('`', '\\`')|safe }}`, `{{ wb.cover_image|default('') }}`)'
+                                        class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px;">Редактировать</button>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Удалить водоём {{ wb.name }}? Это действие нельзя отменить!')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="wb_id" value="{{ wb.id }}">
+                                    <button class="submit-btn" style="width:auto; padding:4px 10px; font-size:11px; background:var(--bg-rejection); border-color:var(--border-danger); color:var(--text-danger);">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для всех рыб -->
+<div id="allFishModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:var(--bg-panel); border:1px solid var(--border-primary); width:90%; max-width:600px; max-height:80%; overflow:auto; border-radius:8px;">
+        <div style="padding:16px; border-bottom:1px solid var(--border-primary); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="color:var(--text-heading);">Все виды рыб</h3>
+            <button onclick="closeAllFishModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding:16px;">
+            <input type="text" id="fishModalSearch" placeholder="Поиск рыбы..." 
+                   style="width:100%; padding:8px; margin-bottom:12px; background:var(--bg-input); border:1px solid var(--border-input); color:var(--text-primary); border-radius:4px;">
+            <div id="allFishList" style="display:flex; flex-wrap:wrap; gap:8px; max-height:400px; overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
+    let allRegions = [];
+    let allFish = [];
+    let selectedFishIds = [];
+    let currentEditWbId = null;
+    let fishCountCache = {};
+    let originalRowsOrder = []; // Храним исходный порядок строк
+    
+    // ============ ЗАГРУЗКА ДАННЫХ ============
+    async function loadRegions() {
+        try {
+            const res = await fetch('/api/regions/all');
+            const data = await res.json();
+            allRegions = data.regions || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки регионов:', e);
+        }
+    }
+    
+    async function loadFishSpecies() {
+        try {
+            const res = await fetch('/api/fish/all');
+            const data = await res.json();
+            allFish = data.fish || [];
+        } catch (e) {
+            console.warn('Ошибка загрузки рыб:', e);
+        }
+    }
+    
+    async function loadWaterbodyFish(waterbodyId) {
+        if (!waterbodyId) return [];
+        if (fishCountCache[waterbodyId]) return fishCountCache[waterbodyId];
+        
+        try {
+            const res = await fetch(`/api/waterbodies/${waterbodyId}/fish`);
+            const data = await res.json();
+            fishCountCache[waterbodyId] = data.fish_ids || [];
+            return fishCountCache[waterbodyId];
+        } catch (e) {
+            console.warn('Ошибка загрузки рыб водоёма:', e);
+            return [];
+        }
+    }
+    
+    async function loadAllFishCounts() {
+        const rows = document.querySelectorAll('#waterbodiesTableBody tr');
+        for (const row of rows) {
+            const wbId = row.getAttribute('data-wb-id');
+            if (wbId) {
+                const fishIds = await loadWaterbodyFish(parseInt(wbId));
+                const countCell = row.querySelector('.fish-count-cell .fish-count-value');
+                if (countCell) {
+                    countCell.textContent = fishIds.length;
+                }
+            }
+        }
+    }
+    
+    // Сохраняем исходный порядок строк
+    function saveOriginalOrder() {
+        const tbody = document.getElementById('waterbodiesTableBody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        originalRowsOrder = rows.map(row => row.cloneNode(true));
+    }
+    
+    // Восстанавливаем исходный порядок
+    function restoreOriginalOrder() {
+        const tbody = document.getElementById('waterbodiesTableBody');
+        tbody.innerHTML = '';
+        originalRowsOrder.forEach(row => {
+            tbody.appendChild(row.cloneNode(true));
+        });
+    }
+    
+    // ============ РЕГИОНЫ С ПОИСКОМ ДЛЯ ФОРМЫ ============
+    function showRegionSuggestions(query) {
+        const suggestionsDiv = document.getElementById('regionSuggestions');
+        const regionError = document.getElementById('region-error');
+        
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allRegions.filter(r => 
+            r.name.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(r => 
+            `<div class="region-suggestion-item" data-id="${r.id}" data-name="${r.name.replace(/'/g, "\\'")}" 
+                  style="padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">
+                 ${r.name}
+             </div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+        
+        document.querySelectorAll('.region-suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = item.getAttribute('data-id');
+                const name = item.getAttribute('data-name');
+                document.getElementById('regionSearch').value = name;
+                document.getElementById('wbRegion').value = id;
+                suggestionsDiv.style.display = 'none';
+                regionError.textContent = '';
+            });
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = 'var(--bg-hover)';
+            });
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+            });
+        });
+    }
+    
+    function validateRegion() {
+        const searchValue = document.getElementById('regionSearch').value.trim();
+        const regionId = document.getElementById('wbRegion').value;
+        const regionError = document.getElementById('region-error');
+        
+        if (!searchValue) {
+            regionError.textContent = 'Выберите регион из списка';
+            return false;
+        }
+        
+        const found = allRegions.find(r => r.name === searchValue);
+        if (!found || found.id != regionId) {
+            regionError.textContent = 'Выберите корректный регион из выпадающего списка';
+            return false;
+        }
+        
+        regionError.textContent = '';
+        return true;
+    }
+    
+    // ============ ФИЛЬТР ПО РЕГИОНУ С ПОИСКОМ ============
+    function showFilterRegionSuggestions(query) {
+        const suggestionsDiv = document.getElementById('filterRegionSuggestions');
+        
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allRegions.filter(r => 
+            r.name.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(r => 
+            `<div class="filter-region-suggestion-item" data-id="${r.id}" data-name="${r.name.replace(/'/g, "\\'")}" 
+                  style="padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">
+                 ${r.name}
+             </div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+        
+        document.querySelectorAll('.filter-region-suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = item.getAttribute('data-id');
+                const name = item.getAttribute('data-name');
+                document.getElementById('filterRegionSearch').value = name;
+                document.getElementById('filterRegionId').value = id;
+                suggestionsDiv.style.display = 'none';
+            });
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = 'var(--bg-hover)';
+            });
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+            });
+        });
+    }
+    
+    // ============ ПЛОЩАДЬ ============
+    function updateAreaField() {
+        const value = document.getElementById('wbAreaValue').value;
+        const unit = document.getElementById('wbAreaUnit').value;
+        if (value && !isNaN(value)) {
+            document.getElementById('wbArea').value = `${value} ${unit}`;
+        } else {
+            document.getElementById('wbArea').value = '';
+        }
+    }
+    
+    function parseArea(areaStr) {
+        if (!areaStr) return { value: '', unit: 'km²' };
+        const match = areaStr.match(/^([\d.]+)\s*(км²|km²|м²|m²|га|ha)?$/i);
+        if (match) {
+            let value = match[1];
+            let unit = match[2] || 'km²';
+            if (unit === 'km²' || unit === 'км²') unit = 'km²';
+            else if (unit === 'm²' || unit === 'м²') unit = 'm²';
+            else if (unit === 'га' || unit === 'ha') unit = 'га';
+            else unit = 'km²';
+            return { value, unit };
+        }
+        return { value: '', unit: 'km²' };
+    }
+    
+    // ============ РЫБЫ ============
+    function renderSelectedFish() {
+        const container = document.getElementById('selectedFishList');
+        if (selectedFishIds.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Рыбы не выбраны</div>';
+            return;
+        }
+        
+        const selectedFish = allFish.filter(f => selectedFishIds.includes(f.id));
+        container.innerHTML = selectedFish.map(f => `
+            <div class="fish-tag" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--btn-bg); color:var(--btn-text); border-radius:16px; font-size:12px;">
+                ${f.name}
+                <span class="remove-fish" style="cursor:pointer; font-weight:bold; font-size:14px; line-height:1; opacity:0.7;" onclick="removeFish(${f.id})">✕</span>
+            </div>
+        `).join('');
+    }
+    
+    function removeFish(fishId) {
+        selectedFishIds = selectedFishIds.filter(id => id !== fishId);
+        renderSelectedFish();
+        updateFishInput();
+    }
+    
+    function addFish(fishId) {
+        if (!selectedFishIds.includes(fishId)) {
+            selectedFishIds.push(fishId);
+            renderSelectedFish();
+            updateFishInput();
+        }
+    }
+    
+    function updateFishInput() {
+        let fishInput = document.getElementById('fish_ids_input');
+        if (!fishInput) {
+            fishInput = document.createElement('input');
+            fishInput.type = 'hidden';
+            fishInput.name = 'fish_ids';
+            fishInput.id = 'fish_ids_input';
+            document.getElementById('wbForm').appendChild(fishInput);
+        }
+        fishInput.value = selectedFishIds.join(',');
+    }
+    
+    function showFishSuggestions(query) {
+        const suggestionsDiv = document.getElementById('fishSuggestions');
+        if (!query.trim()) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allFish.filter(f => 
+            f.name.toLowerCase().includes(query.toLowerCase()) && 
+            !selectedFishIds.includes(f.id)
+        );
+        
+        if (filtered.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = filtered.map(f => 
+            `<div class="fish-suggestion-item" data-id="${f.id}" data-name="${f.name.replace(/'/g, "\\'")}" 
+                  style="padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--border-tag); font-size:13px;">
+                    ${f.name}
+             </div>`
+        ).join('');
+        suggestionsDiv.style.display = 'block';
+        
+        document.querySelectorAll('.fish-suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.getAttribute('data-id'));
+                addFish(id);
+                document.getElementById('fishSearch').value = '';
+                suggestionsDiv.style.display = 'none';
+            });
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = 'var(--bg-hover)';
+            });
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+            });
+        });
+    }
+    
+    // ============ МОДАЛЬНОЕ ОКНО ДЛЯ РЫБ ============
+    function showAllFishModal() {
+        const modal = document.getElementById('allFishModal');
+        const listContainer = document.getElementById('allFishList');
+        const searchInput = document.getElementById('fishModalSearch');
+        
+        function renderFishList(filter = '') {
+            const filtered = allFish.filter(f => 
+                f.name.toLowerCase().includes(filter.toLowerCase())
+            );
+            
+            listContainer.innerHTML = filtered.map(f => `
+                <div class="modal-fish-item ${selectedFishIds.includes(f.id) ? 'selected' : ''}" 
+                     data-id="${f.id}" data-name="${f.name.replace(/'/g, "\\'")}"
+                     style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:${selectedFishIds.includes(f.id) ? 'var(--btn-bg)' : 'var(--bg-input)'}; color:${selectedFishIds.includes(f.id) ? 'var(--btn-text)' : 'var(--text-primary)'}; border:1px solid var(--border-tag); border-radius:20px; font-size:13px; cursor:pointer; transition:0.2s;">
+                    ${f.name}
+                </div>
+            `).join('');
+            
+            document.querySelectorAll('.modal-fish-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = parseInt(item.getAttribute('data-id'));
+                    if (selectedFishIds.includes(id)) {
+                        removeFish(id);
+                    } else {
+                        addFish(id);
+                    }
+                    renderFishList(searchInput.value);
+                });
+                item.addEventListener('mouseenter', () => {
+                    if (!selectedFishIds.includes(parseInt(item.getAttribute('data-id')))) {
+                        item.style.backgroundColor = 'var(--bg-hover)';
+                    }
+                });
+                item.addEventListener('mouseleave', () => {
+                    const id = parseInt(item.getAttribute('data-id'));
+                    if (!selectedFishIds.includes(id)) {
+                        item.style.backgroundColor = '';
+                    }
+                });
+            });
+        }
+        
+        searchInput.value = '';
+        renderFishList('');
+        searchInput.oninput = (e) => renderFishList(e.target.value);
+        modal.style.display = 'flex';
+    }
+    
+    function closeAllFishModal() {
+        document.getElementById('allFishModal').style.display = 'none';
+    }
+    
+    // ============ ФИЛЬТРАЦИЯ И СОРТИРОВКА ============
+    function applyFilters() {
+        const searchTerm = document.getElementById('searchWaterbodyName').value.toLowerCase().trim();
+        const filterType = document.getElementById('filterType').value;
+        const filterRegionId = document.getElementById('filterRegionId').value;
+        const sortRating = document.getElementById('sortRating').value;
+        
+        const tbody = document.getElementById('waterbodiesTableBody');
+        // Получаем текущие строки (уже могут быть отфильтрованы)
+        let currentRows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Если есть активные фильтры, фильтруем текущие строки
+        let filteredRows = currentRows;
+        
+        if (searchTerm || filterType || filterRegionId) {
+            filteredRows = currentRows.filter(row => {
+                const name = row.getAttribute('data-name')?.toLowerCase() || '';
+                const type = row.getAttribute('data-type') || '';
+                const regionId = row.getAttribute('data-region-id') || '';
+                
+                const matchSearch = !searchTerm || name.includes(searchTerm);
+                const matchType = !filterType || type === filterType;
+                const matchRegion = !filterRegionId || regionId === filterRegionId;
+                
+                return matchSearch && matchType && matchRegion;
+            });
+        }
+        
+        // Применяем сортировку
+        if (sortRating) {
+            filteredRows.sort((a, b) => {
+                const ratingA = parseFloat(a.getAttribute('data-rating')) || 0;
+                const ratingB = parseFloat(b.getAttribute('data-rating')) || 0;
+                if (sortRating === 'desc') {
+                    return ratingB - ratingA;
+                } else {
+                    return ratingA - ratingB;
+                }
+            });
+        }
+        
+        // Обновляем отображение
+        tbody.innerHTML = '';
+        filteredRows.forEach(row => {
+            tbody.appendChild(row);
+        });
+        
+        // Обновляем статистику
+        const totalCount = currentRows.length;
+        const visibleCount = filteredRows.length;
+        const statsDiv = document.getElementById('filterStats');
+        const totalSpan = document.getElementById('totalCount');
+        
+        totalSpan.textContent = visibleCount;
+        
+            if (searchTerm || filterType || filterRegionId || sortRating) {
+                statsDiv.innerHTML = `Найдено: ${visibleCount} из ${totalCount} водоёмов`;
+        } else {
+            statsDiv.innerHTML = '';
+        }
+    }
+    
+    function clearFilters() {
+        // Очищаем поля фильтров
+        document.getElementById('searchWaterbodyName').value = '';
+        document.getElementById('filterType').value = '';
+        document.getElementById('filterRegionSearch').value = '';
+        document.getElementById('filterRegionId').value = '';
+        document.getElementById('sortRating').value = '';
+        
+        // Восстанавливаем исходные строки из сохранённого порядка
+        const tbody = document.getElementById('waterbodiesTableBody');
+        tbody.innerHTML = '';
+        originalRowsOrder.forEach(row => {
+            tbody.appendChild(row.cloneNode(true));
+        });
+        
+        // Обновляем счётчик
+        const totalCount = originalRowsOrder.length;
+        document.getElementById('totalCount').textContent = totalCount;
+        document.getElementById('filterStats').innerHTML = '';
+    }
+    
+    // ============ ФУНКЦИИ РЕДАКТИРОВАНИЯ ============
+    async function editWb(id, name, type, regionId, regionName, lat, lon, area, accessInfo, infrastructure, desc, coverImage) {
+        currentEditWbId = id;
+
+        document.getElementById('wbFormTitle').textContent = 'Редактировать водоём';
+        document.getElementById('wbAction').value = 'edit';
+        document.getElementById('wbId').value = id;
+        document.getElementById('wbName').value = name;
+        document.getElementById('wbType').value = type;
+        document.getElementById('regionSearch').value = regionName || '';
+        document.getElementById('wbRegion').value = regionId;
+        document.getElementById('wbLat').value = lat !== null ? lat : '';
+        document.getElementById('wbLon').value = lon !== null ? lon : '';
+
+        // Площадь
+        const { value: areaValue, unit: areaUnit } = parseArea(area || '');
+        document.getElementById('wbAreaValue').value = areaValue;
+        document.getElementById('wbAreaUnit').value = areaUnit;
+        document.getElementById('wbArea').value = area || '';
+
+        document.getElementById('wbAccess').value = accessInfo || '';
+        document.getElementById('wbInfrastructure').value = infrastructure || '';
+        document.getElementById('wbDesc').value = desc || '';
+
+        // Отображение текущего изображения
+        const previewContainer = document.getElementById('currentCoverImagePreview');
+        if (coverImage) {
+            previewContainer.innerHTML = `
+                <div style="margin-top:8px; padding:8px; background:var(--bg-input); border:1px solid var(--border-tag); border-radius:4px;">
+                    <img src="{{ url_for('static', filename='') }}${coverImage}" style="max-height:80px; border-radius:4px;">
+                    <div style="margin-top:4px; font-size:11px; color:var(--text-muted);">Текущее изображение</div>
+                </div>
+            `;
+        } else {
+            previewContainer.innerHTML = '';
+        }
+
+        // Загружаем рыбы водоёма
+        const fishIds = await loadWaterbodyFish(id);
+        selectedFishIds = fishIds;
+        renderSelectedFish();
+        updateFishInput();
+
+        document.getElementById('wbSubmitBtn').innerHTML = 'Сохранить изменения';
+        document.getElementById('wbCancelBtn').style.display = 'block';
+
+        document.getElementById('wbFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function cancelWbEdit() {
+        document.getElementById('wbForm').reset();
+        document.getElementById('wbFormTitle').textContent = '➕ Добавить водоём';
+        document.getElementById('wbAction').value = 'create';
+        document.getElementById('wbId').value = '';
+        document.getElementById('wbSubmitBtn').innerHTML = '➕ Добавить';
+        document.getElementById('wbCancelBtn').style.display = 'none';
+        document.getElementById('region-error').textContent = '';
+        
+        selectedFishIds = [];
+        renderSelectedFish();
+        updateFishInput();
+        
+        currentEditWbId = null;
+    }
+    
+    // ============ ВАЛИДАЦИЯ ФОРМЫ ============
+    document.getElementById('wbForm').addEventListener('submit', function(e) {
+        const errors = [];
+        const errorDiv = document.getElementById('form-errors');
+        errorDiv.innerHTML = '';
+        
+        // Проверка региона
+        if (!validateRegion()) {
+            errors.push('❌ Выберите корректный регион из выпадающего списка');
+        }
+        
+        // Проверка названия
+        const name = document.getElementById('wbName').value.trim();
+        if (!name) {
+            errors.push('❌ Введите название водоёма');
+        }
+        
+        // Проверка типа
+        const type = document.getElementById('wbType').value;
+        if (!type) {
+            errors.push('❌ Выберите тип водоёма');
+        }
+        
+        if (errors.length > 0) {
+            e.preventDefault();
+            errorDiv.innerHTML = errors.join('<br>');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+    
+    // ============ ИНИЦИАЛИЗАЦИЯ ============
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRegions();
+        await loadFishSpecies();
+        await loadAllFishCounts();
+        
+        // Сохраняем исходный порядок строк
+        saveOriginalOrder();
+        
+        const regionSearch = document.getElementById('regionSearch');
+        const fishSearch = document.getElementById('fishSearch');
+        const filterRegionSearch = document.getElementById('filterRegionSearch');
+        
+        regionSearch?.addEventListener('input', (e) => {
+            showRegionSuggestions(e.target.value);
+            if (!e.target.value.trim()) {
+                document.getElementById('wbRegion').value = '';
+            }
+        });
+        
+        regionSearch?.addEventListener('blur', () => {
+            setTimeout(() => {
+                validateRegion();
+                document.getElementById('regionSuggestions').style.display = 'none';
+            }, 200);
+        });
+        
+        filterRegionSearch?.addEventListener('input', (e) => {
+            showFilterRegionSuggestions(e.target.value);
+        });
+        
+        filterRegionSearch?.addEventListener('blur', () => {
+            setTimeout(() => {
+                document.getElementById('filterRegionSuggestions').style.display = 'none';
+            }, 200);
+        });
+        
+        fishSearch?.addEventListener('input', (e) => {
+            showFishSuggestions(e.target.value);
+        });
+        
+        fishSearch?.addEventListener('blur', () => {
+            setTimeout(() => {
+                document.getElementById('fishSuggestions').style.display = 'none';
+            }, 200);
+        });
+        
+        // Обновление поля площади при изменении
+        document.getElementById('wbAreaValue')?.addEventListener('input', updateAreaField);
+        document.getElementById('wbAreaUnit')?.addEventListener('change', updateAreaField);
+        
+        renderSelectedFish();
+        
+        // Закрытие модального окна при клике вне
+        document.getElementById('allFishModal')?.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('allFishModal')) {
+                closeAllFishModal();
+            }
+        });
+        
+        // Обработчики для фильтров (по Enter)
+        document.getElementById('searchWaterbodyName')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') applyFilters();
+        });
+        
+        // Применяем фильтры при изменении select
+        document.getElementById('filterType')?.addEventListener('change', applyFilters);
+        document.getElementById('sortRating')?.addEventListener('change', applyFilters);
+    });
+</script>
+
+<style>
+    .region-suggestion-item:hover, .fish-suggestion-item:hover, .filter-region-suggestion-item:hover {
+        background-color: var(--bg-hover);
+    }
+    .modal-fish-item.selected {
+        background: var(--btn-bg) !important;
+        color: var(--btn-text) !important;
+        border-color: var(--btn-border) !important;
+    }
+    textarea {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .fish-count-value {
+        font-weight: 600;
+        color: var(--text-accent);
+    }
+</style>
+{% endblock %}

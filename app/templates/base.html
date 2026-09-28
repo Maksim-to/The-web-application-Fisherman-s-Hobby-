@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{% block title %}Рыболов-любитель{% endblock %}</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <!-- Font Awesome CDN -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        {% block extra_head %}{% endblock %}
+    </head>
+<body>
+    <!-- Скрытая форма для CSRF-токена -->
+    <form id="csrfForm" style="display:none;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+
+    <header class="header">
+        <a href="{{ url_for('main.index') }}" style="text-decoration: none;">
+            <div class="logo">РЫБОЛОВ-<span>ЛЮБИТЕЛЬ</span></div>
+        </a>
+        <nav>
+            <a href="{{ url_for('main.waterbodies_catalog') }}" {% if request.endpoint == 'main.waterbodies_catalog' %}class="active"{% endif %}>Водоёмы</a>
+            <a href="{{ url_for('main.forecast_page') }}" {% if request.endpoint == 'main.forecast_page' %}class="active"{% endif %}>Прогноз клёва</a>
+            <a href="{{ url_for('main.rules_page') }}" {% if request.endpoint == 'main.rules_page' %}class="active"{% endif %}>Правила</a>
+            <a href="{{ url_for('main.fish_catalog') }}" {% if request.endpoint in ('main.fish_catalog', 'main.fish_detail') %}class="active"{% endif %}>Виды рыб</a>
+            <a href="{{ url_for('main.gear_page') }}" {% if request.endpoint in ('main.gear_page', 'main.gear_detail') %}class="active"{% endif %}>Снасти</a>
+            <a href="{{ url_for('main.bait_page') }}" {% if request.endpoint in ('main.bait_page', 'main.bait_detail') %}class="active"{% endif %}>Наживки</a>
+            <a href="{{ url_for('main.reports_page') }}" {% if request.endpoint == 'main.reports_page' %}class="active"{% endif %}>Отчёты</a>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.profile') }}" {% if request.endpoint == 'main.profile' %}class="active"{% endif %}>Личный кабинет</a>
+            {% endif %}
+        </nav>
+        <div class="user-block">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.profile') }}" style="color: var(--text-nav); text-decoration:none;">
+                    <span>{{ current_user.full_name.split()[0] }} {{ current_user.full_name.split()[-1][0] }}.</span>
+                </a>
+                {% if current_user.role == 'admin' %}
+                    <a href="{{ url_for('main.admin_panel') }}" style="color: var(--text-accent); text-decoration:none; font-size:12px; margin-left:8px;">Админ</a>
+                {% endif %}
+                <a href="{{ url_for('main.logout') }}" style="color: var(--text-muted); text-decoration:none; font-size:12px; margin-left:10px;">Выйти</a>
+            {% else %}
+                <a href="{{ url_for('main.login') }}" style="color: var(--text-nav); text-decoration:none;">Войти</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        © 2026 РЫБОЛОВ-ЛЮБИТЕЛЬ •
+        <a href="{{ url_for('main.policy') }}">Политика конфиденциальности</a> •
+        <a href="{{ url_for('main.user_agreement') }}">Пользовательское соглашение</a> •
+        <a href="{{ url_for('main.legal') }}">Правовая информация</a>
+    </footer>
+
+    <script>
+        document.querySelectorAll('.flash-message').forEach(msg => msg.addEventListener('click', () => msg.remove()));
+        (function() {
+            const html = document.documentElement;
+            const toggleBtn = document.getElementById('themeToggle');
+            
+            let currentTheme = localStorage.getItem('fisher-app-theme');
+            if (!currentTheme || (currentTheme !== 'light' && currentTheme !== 'dark')) {
+                currentTheme = 'light';
+            }
+            
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    html.classList.add('dark-theme');
+                } else {
+                    html.classList.remove('dark-theme');
+                }
+                if (toggleBtn) {
+                    toggleBtn.textContent = theme === 'dark' ? 'Светлая тема' : 'Темная тема';
+                    toggleBtn.title = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+                }
+                localStorage.setItem('fisher-app-theme', theme);
+            }
+            
+            applyTheme(currentTheme);
+            
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    currentTheme = newTheme;
+                    applyTheme(currentTheme);
+                });
+            }
+        })();
+        
+        // Глобальная функция для получения CSRF-токена
+        window.getCSRFToken = function() {
+            const csrfInput = document.querySelector('#csrfForm input[name="csrf_token"]');
+            return csrfInput ? csrfInput.value : '';
+        };
+    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

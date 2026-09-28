@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Наживки — Рыболов-любитель{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 960px; margin: 0 auto; padding: 20px;">
+  <div class="panel" style="margin-bottom:16px; text-align: center;">
+    <div class="search-filter-bar" style="justify-content: center; max-width: 600px; margin: 0 auto;">
+      <input type="text" id="baitSearch" placeholder="Поиск по названию..." oninput="filterBait()" style="flex: 1; min-width: 300px; width: 100%;">
+    </div>
+  </div>
+
+  <div class="catalog-grid" id="baitGrid">
+    {% for b in baits %}
+      <a href="{{ url_for('main.bait_detail', id=b.id) }}" class="catalog-card" data-name="{{ b.name|lower }}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+          <div class="card-title">{{ b.name }}</div>
+          <div class="card-subtitle">{{ b.category or '' }}</div>
+        </div>
+        {% if b.description %}
+          <div class="card-info">{{ b.description[:120] }}{% if b.description|length > 120 %}...{% endif %}</div>
+        {% endif %}
+      </a>
+    {% else %}
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">
+        Наживки не найдены
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function filterBait() {
+  const q = (document.getElementById('baitSearch')?.value || '').toLowerCase();
+  document.querySelectorAll('#baitGrid .catalog-card').forEach(card => {
+    const name = card.dataset.name || '';
+    const matchName = !q || name.includes(q);
+    card.style.display = matchName ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
