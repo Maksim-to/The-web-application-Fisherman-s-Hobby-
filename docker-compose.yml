@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=development
+      - SECRET_KEY=supersecretkey123
+      - OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY}
+      - YANDEX_MAPS_API_KEY=${YANDEX_MAPS_API_KEY}
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
